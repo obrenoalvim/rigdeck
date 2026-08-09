@@ -1,38 +1,40 @@
 # // RigDeck
 
-**Um Stream Deck sem hardware.** O celular abre uma página web e controla o
-PC Windows pela rede local: liga programas, jogos e sites, posiciona janelas
-em monitores específicos, entra e sai de tela cheia, encerra o que abriu com
-um toque. Nenhum app nativo instalado no celular.
+🇧🇷 [Ler em Português](README.pt-BR.md)
 
-![RigDeck rodando em modo landscape](.github/screenshot.jpg)
+**A Stream Deck with no hardware.** Your phone opens a web page and controls
+the Windows PC over the local network: launches apps, games and sites,
+positions windows on specific monitors, enters and exits fullscreen, closes
+whatever it opened with a tap. No native app installed on the phone.
 
-## Sobre
+![RigDeck running in landscape mode](.github/screenshot.jpg)
 
-RigDeck nasceu de um problema específico: jogar com amigos exigia abrir o
-Discord num monitor e o jogo em outro, toda vez, na mão. Virou um painel de
-automação completo: uma grade de botões configuráveis em pastas, igual ao
-Stream Deck de verdade, servida como PWA. Um backend pequeno comanda o
-Windows por baixo dos panos.
+## About
 
-É uma ferramenta pessoal de automação de desktop, pensada pra rodar numa rede
-local controlando uma única máquina. Este repositório serve como referência
-de arquitetura e como base pra quem quiser adaptar pra própria configuração.
+RigDeck started from one specific problem: gaming with friends meant opening
+Discord on one monitor and the game on another, by hand, every single time.
+It grew into a full automation panel: a grid of configurable buttons
+organized in folders, just like a real Stream Deck, served as a PWA. A small
+backend drives Windows underneath.
 
-## Como funciona
+It's a personal desktop automation tool, built to run on a local network
+controlling a single machine. This repository serves as an architecture
+reference and a base for anyone who wants to adapt it to their own setup.
+
+## How it works
 
 ```
-┌─────────────┐         HTTP (rede local)        ┌──────────────────┐
-│  Celular /   │ ───────────────────────────────▶ │   Fastify API     │
-│  qualquer    │ ◀─────────────────────────────── │   (Node + TS)      │
-│  navegador   │            JSON                  └─────────┬────────┘
+┌─────────────┐         HTTP (local network)     ┌──────────────────┐
+│   Phone /    │ ───────────────────────────────▶ │   Fastify API     │
+│   any        │ ◀─────────────────────────────── │   (Node + TS)      │
+│   browser    │            JSON                  └─────────┬────────┘
 └─────────────┘                                              │
-  PWA estática                                     spawna processos
-  (vanilla JS, sem                                            │
-   build step)                                                ▼
+  Static PWA                                       spawns processes
+  (vanilla JS, no                                              │
+   build step)                                                 ▼
                                                     ┌──────────────────┐
-                                                    │  Scripts          │
-                                                    │  PowerShell        │
+                                                    │  PowerShell       │
+                                                    │  scripts           │
                                                     └─────────┬────────┘
                                                               │
                                                    Win32 API (SetWindowPos,
@@ -40,134 +42,136 @@ de arquitetura e como base pra quem quiser adaptar pra própria configuração.
                                                    EnumWindows, taskkill...)
                                                               │
                                                               ▼
-                                                     Windows de verdade
+                                                      Real Windows windows
 ```
 
-1. **Frontend.** PWA em JavaScript puro, sem framework e sem build step,
-   servida como arquivo estático. A grade de botões (presets) organiza em
-   pastas, o editor fica embutido no próprio app, e o cliente recarrega
-   sozinho quando o servidor sobe uma versão nova.
-2. **Backend.** API Fastify em TypeScript. Recebe o pedido de rodar um
-   preset, resolve os passos dele e chama o executor.
-3. **Executor.** Decide como cada passo roda: abre um programa, manda uma
-   tecla, roda um comando, ou fecha algo que já estava aberto.
-4. **Scripts PowerShell.** A camada que conversa com o Windows: enumeram
-   monitores, movem e redimensionam janelas via Win32 API, extraem ícones de
-   `.exe`, descobrem jogos instalados no Steam e na Epic, enviam teclas via
+1. **Frontend.** Plain JavaScript PWA, no framework, no build step, served
+   as static files. The button grid (presets) is organized in folders, the
+   editor is built into the app itself, and the client reloads itself when
+   the server ships a new version.
+2. **Backend.** Fastify API in TypeScript. Receives the request to run a
+   preset, resolves its steps, and calls the executor.
+3. **Executor.** Decides how each step runs: opens a program, sends a key,
+   runs a command, or closes something that was already open.
+4. **PowerShell scripts.** The layer that talks to Windows: enumerate
+   monitors, move and resize windows via the Win32 API, extract icons from
+   `.exe` files, discover games installed on Steam and Epic, send keys via
    `SendKeys`.
 
-Cada camada só conhece a interface da vizinha: o frontend não sabe que existe
-PowerShell, o executor não sabe que existe uma grade de botões. Dá pra testar
-cada uma isolada.
+Each layer only knows its neighbor's interface: the frontend doesn't know
+PowerShell exists, the executor doesn't know a button grid exists. Each one
+can be tested in isolation.
 
-## Funcionalidades
+## Features
 
-- **Presets em pastas.** Organiza atalhos em pastas aninhadas, igual ao
-  Stream Deck físico da Elgato.
-- **Três tipos de passo por preset.**
-  - `launch`: abre um `.exe`, atalho, protocolo (`steam://`, `epicgames://`)
-    ou URL, com posicionamento de janela por monitor e tela cheia opcional.
-  - `cmd`: roda um comando de shell qualquer e retorna a saída.
-  - `key`: envia uma tecla (F11, ESC, Alt+Enter...) pra janela em foco ou
-    pra um processo específico. Inclui `MAXIMIZE`/`RESTORE` como ações de
-    janela de verdade, que não dependem do app escutar a tecla.
-- **Presets com múltiplos passos.** Um botão abre Spotify, Brave e VS Code de
-  uma vez, por exemplo.
-- **Posicionamento por monitor.** Cada passo escolhe o monitor e decide se
-  entra em tela cheia ou fica numa posição e tamanho específicos.
-- **Segurar pra fechar.** Segurar um botão encerra exatamente o que aquele
-  preset abriu, rastreado por PID ou HWND. Não mata processos com o mesmo
-  nome que já estavam abertos por outro motivo.
-- **URLs em janela própria.** Abrem via `--app=`, sem abas nem barra de
-  endereço, e fecham individualmente sem derrubar o navegador inteiro.
-- **Descoberta automática de programas.** Varre Menu Iniciar, Desktop, e os
-  manifestos do Steam e do Epic Games Launcher, e classifica sozinho o que é
-  jogo e o que é programa comum.
-- **Stats ao vivo.** CPU, RAM e disco livre na barra de status.
-- **PWA instalável.** Funciona como app na tela inicial do celular, com
-  layout compacto em landscape: até 4 botões por página, numa bandeja
-  deslizável, igual ícones de celular.
-- **Export e import.** Backup de todos os presets em um JSON.
-- **Auto-start sem admin.** Sobe sozinho no login via atalho na pasta
-  Inicializar do Windows, sem privilégios elevados.
+- **Presets in folders.** Organizes shortcuts in nested folders, just like
+  Elgato's physical Stream Deck.
+- **Three step types per preset.**
+  - `launch`: opens an `.exe`, shortcut, protocol (`steam://`,
+    `epicgames://`) or URL, with per-monitor window positioning and optional
+    fullscreen.
+  - `cmd`: runs any shell command and returns the output.
+  - `key`: sends a keystroke (F11, ESC, Alt+Enter...) to the focused window
+    or to a specific process. Includes `MAXIMIZE`/`RESTORE` as real window
+    actions, which don't depend on the app listening for the key.
+- **Multi-step presets.** One button opens Spotify, Brave and VS Code at
+  once, for example.
+- **Per-monitor positioning.** Each step picks its monitor and decides
+  whether to go fullscreen or use a specific position and size.
+- **Hold to close.** Holding a button closes exactly what that preset
+  opened, tracked by PID or HWND. It doesn't kill processes with the same
+  name that were already open for another reason.
+- **URLs in their own window.** Open via `--app=`, with no tabs or address
+  bar, and close individually without taking down the whole browser.
+- **Automatic program discovery.** Scans the Start Menu, Desktop, and the
+  Steam and Epic Games Launcher manifests, and classifies what's a game and
+  what's a regular program on its own.
+- **Live stats.** CPU, RAM and free disk in the status bar.
+- **Installable PWA.** Works as a home-screen app on the phone, with a
+  compact landscape layout: up to 4 buttons per page, in a sliding tray,
+  like phone app icons.
+- **Export and import.** Back up all presets in a single JSON file.
+- **Auto-start without admin.** Starts itself on login via a shortcut in the
+  Windows Startup folder, with no elevated privileges required.
 
 ## Stack
 
-| Camada | Tecnologia |
+| Layer | Technology |
 |---|---|
 | Backend | [Fastify](https://fastify.dev) + TypeScript, Node.js 20+ |
-| Frontend | JavaScript puro (ES modules), zero framework, zero build step |
-| Automação | PowerShell (Win32 API via `Add-Type` inline) |
-| Testes | `node:test` nativo, `tsx` como loader |
-| Persistência | JSON local (sem banco de dados) |
+| Frontend | Plain JavaScript (ES modules), zero framework, zero build step |
+| Automation | PowerShell (Win32 API via inline `Add-Type`) |
+| Tests | native `node:test`, `tsx` as the loader |
+| Persistence | Local JSON (no database) |
 
-## Por que Fastify?
+## Why Fastify?
 
-O backend original usava Express. A troca pra Fastify e TypeScript foi
-deliberada nesta versão pública: tipagem de ponta a ponta, schema de rota
-nativo, uma base mais próxima do que se usa em produção. A filosofia
-minimalista continua a mesma: sem ORM, sem camada de injeção de dependência,
-sem abstração que o projeto não precisa.
+The original backend used Express. The switch to Fastify and TypeScript was
+deliberate for this public version: end-to-end typing, native route schemas,
+a base closer to what's used in production. The minimalist philosophy stays
+the same: no ORM, no dependency injection layer, no abstraction the project
+doesn't need.
 
-## Começando
+## Getting started
 
-### Pré-requisitos
+### Prerequisites
 
 - Windows 10/11
-- [Node.js](https://nodejs.org) 20 ou mais recente
-- PowerShell (já vem no Windows)
+- [Node.js](https://nodejs.org) 20 or newer
+- PowerShell (already on Windows)
 
-### Instalação
+### Installation
 
 ```bash
-git clone https://github.com/<seu-usuario>/rigdeck.git
+git clone https://github.com/<your-username>/rigdeck.git
 cd rigdeck
 npm install
 npm run build
 npm start
 ```
 
-O servidor sobe em `http://localhost:4321`. Acesse de qualquer dispositivo na
-mesma rede local pelo IP da máquina (`http://192.168.x.x:4321`).
+The server starts at `http://localhost:4321`. Access it from any device on
+the same local network via the machine's IP (`http://192.168.x.x:4321`).
 
-Pra desenvolvimento com reload automático:
+For development with automatic reload:
 
 ```bash
 npm run dev
 ```
 
-### Configuração
+### Configuration
 
-Copie `.env.example` pra `.env` se quiser mudar a porta ou o caminho do
-arquivo de presets:
+Copy `.env.example` to `.env` if you want to change the port or the presets
+file path:
 
 ```bash
 cp .env.example .env
 ```
 
-### Auto-start no login, sem precisar de admin
+### Auto-start on login, no admin required
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install-startup-shortcut.ps1
 ```
 
-Cria um atalho na pasta Inicializar do Windows que sobe o servidor sozinho a
-cada login.
+Creates a shortcut in the Windows Startup folder that starts the server on
+its own on every login.
 
-## Uso
+## Usage
 
-1. Abra `http://localhost:4321`, ou o IP da máquina, no celular ou navegador.
-2. Toque em **EDITAR** pra abrir o painel de configuração.
-3. Crie uma pasta ou um atalho, escolha o tipo de passo (**Abrir**, **Comando
-   CMD** ou **Tecla**), preencha o alvo e salve.
-4. Toque no botão criado pra rodar o preset. Segure pressionado pra encerrar
-   o que ele abriu.
+1. Open `http://localhost:4321`, or the machine's IP, on your phone or
+   browser.
+2. Tap **EDITAR** (edit) to open the configuration panel.
+3. Create a folder or a shortcut, pick the step type (**Launch**, **CMD
+   Command** or **Key**), fill in the target and save.
+4. Tap the button you created to run the preset. Hold it to close what it
+   opened.
 
-### Exemplo: Discord e jogo em monitores separados
+### Example: Discord and a game on separate monitors
 
 ```json
 {
-  "name": "Sessão de jogo",
+  "name": "Gaming session",
   "steps": [
     { "type": "launch", "target": "C:\\...\\Discord.exe", "monitor": 0 },
     { "type": "launch", "target": "steam://rungameid/730", "monitor": 1, "fullscreen": true }
@@ -175,36 +179,37 @@ cada login.
 }
 ```
 
-## Estrutura do projeto
+## Project structure
 
 ```
 rigdeck/
 ├── src/
-│   ├── server.ts        # rotas Fastify
-│   ├── types.ts         # tipos compartilhados
+│   ├── server.ts        # Fastify routes
+│   ├── types.ts         # shared types
 │   └── lib/
-│       ├── executor.ts       # decide como cada passo roda
-│       ├── presets-store.ts  # persistência (JSON local)
-│       ├── launch.ts         # abre programas/URLs
-│       ├── stats.ts          # CPU/RAM/disco
-│       ├── icons.ts          # extrai ícone de .exe
+│       ├── executor.ts       # decides how each step runs
+│       ├── presets-store.ts  # persistence (local JSON)
+│       ├── launch.ts         # opens programs/URLs
+│       ├── stats.ts          # CPU/RAM/disk
+│       ├── icons.ts          # extracts icons from .exe files
 │       └── monitors.ts, programs.ts, json-array.ts
-├── scripts/            # PowerShell: a camada que fala com o Windows
-├── public/             # PWA (HTML/CSS/JS puro, sem build)
+├── scripts/            # PowerShell: the layer that talks to Windows
+├── public/             # PWA (plain HTML/CSS/JS, no build)
 ├── test/               # node:test
-└── run-hidden.vbs      # sobe o server sem abrir janela de console
+└── run-hidden.vbs      # starts the server without opening a console window
 ```
 
-## Limitações conhecidas
+## Known limitations
 
-- **Só Windows.** Todo o controle de janela depende de Win32 API via
+- **Windows only.** All window control depends on the Win32 API via
   PowerShell.
-- **Uma máquina, um usuário, uma rede local.** Não tem autenticação. Não
-  exponha a porta 4321 pra internet sem colocar algo na frente, como VPN ou
-  um reverse proxy com auth.
-- **Rastreamento em memória.** Reiniciar o servidor apaga o rastreamento fino
-  de PID e HWND. O fechamento cai de volta pra matar por nome de processo.
+- **One machine, one user, one local network.** There's no authentication.
+  Don't expose port 4321 to the internet without something in front of it,
+  like a VPN or a reverse proxy with auth.
+- **In-memory tracking.** Restarting the server clears the fine-grained
+  PID/HWND tracking. Closing falls back to killing by process name.
 
-## Licença
+## Links
 
-MIT. Veja [LICENSE](LICENSE).
+- Landing page: https://rigdeck.vercel.app
+- License: MIT — see [LICENSE](LICENSE)
