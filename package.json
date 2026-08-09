@@ -1,7 +1,7 @@
 {
   "name": "rigdeck",
   "version": "1.0.0",
-  "description": "Painel web estilo Stream Deck para controlar seu PC Windows a partir do celular — abre programas, jogos e sites, posiciona janelas por monitor, e mais.",
+  "description": "Painel web estilo Stream Deck para controlar seu PC Windows a partir do celular. Abre programas, jogos e sites, e posiciona janelas por monitor.",
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
