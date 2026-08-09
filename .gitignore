@@ -4,3 +4,4 @@ presets.json
 server.log
 *.log
 .env
+tabnews-post.md
