@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert';
+import { cpuPercentFromSamples, getMemoryStats, getDiskStats } from '../src/lib/stats.js';
+
+test('cpuPercentFromSamples calcula % de uso a partir do delta idle/total', () => {
+  const start = { idle: 1000, total: 10000 };
+  const end = { idle: 1500, total: 11000 };
+  // idleDelta=500, totalDelta=1000 -> 50% ocupado
+  assert.strictEqual(cpuPercentFromSamples(start, end), 50);
+});
+
+test('cpuPercentFromSamples retorna 0 quando totalDelta nao avancou', () => {
+  const start = { idle: 100, total: 1000 };
+  const end = { idle: 100, total: 1000 };
+  assert.strictEqual(cpuPercentFromSamples(start, end), 0);
+});
+
+test('cpuPercentFromSamples retorna 100 quando cpu ficou 100% ocupada', () => {
+  const start = { idle: 500, total: 5000 };
+  const end = { idle: 500, total: 6000 };
+  assert.strictEqual(cpuPercentFromSamples(start, end), 100);
+});
+
+test('getMemoryStats retorna numeros plausiveis da maquina real', () => {
+  const stats = getMemoryStats();
+  assert.ok(stats.ramTotalGB > 0);
+  assert.ok(stats.ramUsedGB >= 0 && stats.ramUsedGB <= stats.ramTotalGB);
+  assert.ok(stats.ramPercent >= 0 && stats.ramPercent <= 100);
+});
+
+test('getDiskStats retorna numeros plausiveis do disco real', async () => {
+  const stats = await getDiskStats();
+  assert.ok(stats.diskTotalGB > 0);
+  assert.ok(stats.diskFreeGB >= 0 && stats.diskFreeGB <= stats.diskTotalGB);
+  assert.ok(stats.diskPercent >= 0 && stats.diskPercent <= 100);
+});

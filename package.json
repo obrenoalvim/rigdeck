@@ -1,0 +1,36 @@
+{
+  "name": "rigdeck",
+  "version": "1.0.0",
+  "description": "Painel web estilo Stream Deck para controlar seu PC Windows a partir do celular — abre programas, jogos e sites, posiciona janelas por monitor, e mais.",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/server.test.ts test/executor.test.ts test/monitors.test.ts test/programs.test.ts test/presets-store.test.ts test/stats.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "stream-deck",
+    "home-automation",
+    "windows-automation",
+    "remote-control",
+    "pwa",
+    "fastify",
+    "typescript"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/static": "^10.1.3",
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

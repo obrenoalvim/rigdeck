@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <meta name="theme-color" content="#0a0b0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="RigDeck" />
+  <title>RigDeck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <header>
+    <div class="brand">
+      <span class="brand-mark">//</span>
+      <h1>RIG<span>DECK</span></h1>
+    </div>
+    <div class="header-right">
+      <div id="status" class="status">
+        <span class="led"></span>
+        <span id="status-text">verificando</span>
+      </div>
+      <button class="btn-ghost" id="toggle-edit">EDITAR</button>
+    </div>
+  </header>
+
+  <div id="stats" class="stats"></div>
+  <div id="breadcrumb" class="breadcrumb"></div>
+
+  <main id="grid" aria-label="Presets"></main>
+  <div id="grid-dots" class="grid-dots"></div>
+
+  <datalist id="programs-list"></datalist>
+
+  <section id="editor">
+    <div class="editor-inner">
+      <h2><span class="tag">CONFIG</span> Presets</h2>
+      <div class="editor-body">
+        <div class="editor-col editor-col-list">
+          <div class="editor-toolbar">
+            <button class="btn-ghost small" id="refresh-programs">🔄 ATUALIZAR PROGRAMAS</button>
+            <a class="btn-ghost small" id="export-btn" href="/api/export" download>⬇ EXPORTAR</a>
+            <button class="btn-ghost small" id="import-btn">⬆ IMPORTAR</button>
+            <input type="file" id="import-file" accept=".json" hidden />
+          </div>
+          <div id="preset-list"></div>
+        </div>
+
+        <div class="editor-col editor-col-form">
+          <h3 id="form-title">Novo preset</h3>
+          <div class="step-row">
+            <select id="item-type">
+              <option value="launcher">ATALHO</option>
+              <option value="folder">PASTA</option>
+            </select>
+            <select id="item-parent"></select>
+          </div>
+          <input id="preset-name" placeholder="NOME" />
+          <div id="steps"></div>
+          <button class="btn-ghost small" id="add-step">+ PASSO</button>
+
+          <div class="editor-actions">
+            <button class="btn-solid" id="save-preset">SALVAR</button>
+            <button class="btn-ghost" id="new-preset">LIMPAR / NOVO</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

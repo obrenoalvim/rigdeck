@@ -1,0 +1,6 @@
+node_modules/
+dist/
+presets.json
+server.log
+*.log
+.env
