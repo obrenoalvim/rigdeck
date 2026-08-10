@@ -19,6 +19,12 @@
 body {
   margin: 0;
   min-height: 100vh;
+  /* dvh acompanha a area visivel de verdade (chrome do navegador
+     escondendo/mostrando, fullscreen) -- vh sozinho as vezes fica preso
+     num valor maior que o visivel de fato, empurrando o rodape (barra de
+     midia) pra fora da tela, precisando arrastar pra ver. Navegador sem
+     suporte a dvh ignora essa linha e fica so com o vh de cima. */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   -webkit-user-select: none;
@@ -169,6 +175,11 @@ header h1 span {
   font-size: 11px;
 }
 
+.btn-ghost.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .btn-solid {
   background: var(--accent);
   border: 1px solid var(--accent);
@@ -229,6 +240,52 @@ header h1 span {
 
 .stat-mini.warn .stat-mini-fill { background: var(--accent); }
 .stat-mini.crit .stat-mini-fill { background: var(--fail); }
+
+.media-bar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--edge);
+  background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.media-btn {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, transform 0.08s ease;
+}
+
+.media-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.media-btn.firing {
+  transform: scale(0.9);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.media-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--edge);
+  margin: 0 4px;
+}
 
 .stat-mini-val {
   color: var(--text);
@@ -397,6 +454,7 @@ header h1 span {
 .icon-wrap .icon {
   width: 46px;
   height: 46px;
+  object-fit: cover;
   border-radius: 10px;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55));
 }
@@ -742,7 +800,13 @@ input:focus, select:focus {
   .btn-ghost { padding: 6px 10px; font-size: 10px; }
   .stats { padding: 4px 16px; gap: 14px; }
   .stat-mini-bar { width: 40px; }
+  /* Texto do disco varia de tamanho conforme o valor (GB livre muda),
+     reflow disso e o suspeito do scroll do grid derivar sozinho no
+     celular -- disco e o stat menos util na tela pequena, tira ele. */
+  .stat-mini.disk { display: none; }
   .editor-inner { padding: 16px; }
+  .media-bar { padding: 6px 16px; gap: 6px; }
+  .media-btn { width: 32px; height: 32px; font-size: 13px; }
 }
 
 /* Tela pequena (estreita OU baixa): no maximo 4 botoes por vez, numa
@@ -815,4 +879,39 @@ input:focus, select:focus {
   }
 
   .dot.active { background: var(--accent); }
+}
+
+/* Celular na vertical (largura estreita mas altura sobrando, nao entra no
+   max-height:430px acima) -- a linha unica de 4 icones la em cima deixa
+   a tela com espaco morto embaixo. Aqui a pagina vira grade 2x2 e usa a
+   altura disponivel em vez de empilhar tudo no topo. Continua paginado
+   (max 4 por tela, arrasta pro lado pro resto) -- scroll vertical dentro
+   do grid foi tentado e furou: flex:1 sem conteudo caber empurra a barra
+   de midia pra fora da tela, exigindo rolar a pagina inteira pra ve-la.
+   Paginacao mantem o rodape sempre visivel. So pega telas estreitas E
+   altas -- landscape/tela baixa mantem a 1 linha de cima. */
+@media (max-width: 480px) and (min-height: 431px) {
+  #grid {
+    flex: 1;
+    align-items: center;
+    /* padding fica na pagina, nao no container -- com padding aqui o
+       scroll-snap calcula o snapport ignorando essa faixa e o scrollLeft
+       "start" da pagina 1 sobra num valor != 0, vazando um pedaco da
+       pagina 2 na borda. */
+    padding: 0;
+  }
+
+  .grid-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 14px 16px;
+  }
+
+  .tile { max-width: 160px; }
+
+  .icon-wrap { width: 50px; height: 50px; }
+  .icon-wrap .icon { width: 46px; height: 46px; }
+  .icon-wrap.fallback { width: 46px; height: 46px; font-size: 20px; }
+  .tile-label { font-size: 12px; }
 }

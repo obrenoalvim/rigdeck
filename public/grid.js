@@ -16,6 +16,15 @@ function colorFor(key) {
 
 const PAGE_SIZE = 4;
 
+// Fonte web (Chakra Petch/JetBrains Mono) troca a fallback por ela mesma
+// depois do primeiro paint -- o reflow disso pode fazer o scroll-snap
+// "corrigir" o scrollLeft pra um valor pequeno e errado (~15px), vazando
+// uns pixels da pagina 2 na borda da pagina 1. So corrige se o desvio for
+// pequeno (deriva, nao navegacao real -- pagina 2 fica bem mais longe).
+document.fonts?.ready?.then(() => {
+  if (grid.scrollLeft > 0 && grid.scrollLeft < 100) grid.scrollLeft = 0;
+});
+
 // navigator.vibrate so nao existe no iOS Safari (WebKit nunca implementou) --
 // checa suporte, nunca deixa a ausencia quebrar o toque.
 function haptic(pattern) {
@@ -34,7 +43,7 @@ function buildFolderTile(folder, i, childCount) {
 
   const iconWrap = document.createElement('div');
   iconWrap.className = 'icon-wrap fallback';
-  iconWrap.textContent = '📁';
+  iconWrap.textContent = folder.icon || '📁';
 
   const label = document.createElement('span');
   label.className = 'tile-label';
@@ -46,6 +55,145 @@ function buildFolderTile(folder, i, childCount) {
     haptic(15);
     state.currentFolderId = folder.id;
     renderGrid();
+  };
+  return btn;
+}
+
+function buildFsFolderTile(item, i) {
+  const btn = document.createElement('button');
+  btn.className = 'tile folder';
+  btn.style.setProperty('--i', i);
+  btn.style.setProperty('--tile-accent', colorFor(item.id || item.name));
+
+  const idx = document.createElement('span');
+  idx.className = 'idx';
+  idx.textContent = String(i + 1).padStart(2, '0');
+
+  const iconWrap = document.createElement('div');
+  iconWrap.className = 'icon-wrap fallback';
+  iconWrap.textContent = item.icon || '💾';
+
+  const label = document.createElement('span');
+  label.className = 'tile-label';
+  label.textContent = item.name;
+
+  btn.append(idx, iconWrap, label);
+  if (item.pinned) btn.classList.add('pinned');
+  btn.onclick = () => {
+    haptic(15);
+    state.currentFolderId = item.id;
+    state.currentFsPath = item.path;
+    renderGrid();
+  };
+  return btn;
+}
+
+// Sobe um nivel no path do disco (\\ ou /, tanto faz o SO). Usado so pra
+// navegar "voltar" dentro de uma pasta do disco -- nao ha registro em
+// presets.json pras subpastas, entao nao da pra pegar parentId como nos
+// itens normais.
+function parentPath(p) {
+  const trimmed = p.replace(/[\\/]+$/, '');
+  const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
+  return idx > 0 ? trimmed.slice(0, idx) : trimmed;
+}
+
+function buildFsBackTile() {
+  const btn = document.createElement('button');
+  btn.className = 'tile back-tile';
+  const iconWrap = document.createElement('div');
+  iconWrap.className = 'icon-wrap fallback';
+  iconWrap.textContent = '←';
+  const label = document.createElement('span');
+  label.className = 'tile-label';
+  label.textContent = 'VOLTAR';
+  btn.append(iconWrap, label);
+  btn.onclick = () => {
+    haptic(15);
+    const rootFolder = state.presets.find((p) => p.id === state.currentFolderId);
+    if (rootFolder && state.currentFsPath === rootFolder.path) {
+      state.currentFsPath = null;
+      state.currentFolderId = rootFolder.parentId || null;
+    } else {
+      state.currentFsPath = parentPath(state.currentFsPath);
+    }
+    renderGrid();
+  };
+  return btn;
+}
+
+function buildFsDirTile(entry, i) {
+  const btn = document.createElement('button');
+  btn.className = 'tile folder';
+  btn.style.setProperty('--i', i);
+  btn.style.setProperty('--tile-accent', colorFor(entry.path));
+
+  const idx = document.createElement('span');
+  idx.className = 'idx';
+  idx.textContent = String(i + 1).padStart(2, '0');
+
+  const iconWrap = document.createElement('div');
+  iconWrap.className = 'icon-wrap fallback';
+  iconWrap.textContent = '📁';
+
+  const label = document.createElement('span');
+  label.className = 'tile-label';
+  label.textContent = entry.name;
+
+  btn.append(idx, iconWrap, label);
+  btn.onclick = () => {
+    haptic(15);
+    state.currentFsPath = entry.path;
+    renderGrid();
+  };
+  return btn;
+}
+
+function buildFsFileTile(entry, i) {
+  const btn = document.createElement('button');
+  btn.className = 'tile';
+  btn.style.setProperty('--i', i);
+  btn.style.setProperty('--tile-accent', colorFor(entry.path));
+
+  const idx = document.createElement('span');
+  idx.className = 'idx';
+  idx.textContent = String(i + 1).padStart(2, '0');
+
+  const iconWrap = document.createElement('div');
+  iconWrap.className = 'icon-wrap';
+  const monogram = (entry.name || '?').trim().charAt(0).toUpperCase() || '?';
+  const img = document.createElement('img');
+  img.className = 'icon';
+  img.alt = '';
+  img.src = `/api/icon?path=${encodeURIComponent(entry.path)}`;
+  img.onerror = () => {
+    iconWrap.textContent = monogram;
+    iconWrap.classList.add('fallback');
+    img.remove();
+  };
+  iconWrap.appendChild(img);
+
+  const label = document.createElement('span');
+  label.className = 'tile-label';
+  label.textContent = entry.name;
+
+  const fill = document.createElement('span');
+  fill.className = 'press-fill';
+
+  btn.append(idx, iconWrap, label, fill);
+  btn.onclick = async () => {
+    if (btn.classList.contains('loading')) return;
+    haptic(20);
+    btn.classList.add('firing', 'loading');
+    setTimeout(() => btn.classList.remove('firing'), 200);
+    try {
+      await api(`/fs/open`, { method: 'POST', body: JSON.stringify({ path: entry.path }) });
+      showToast('OK — aberto.');
+    } catch (e) {
+      showToast(`Erro abrindo: ${e.message}`, false);
+    } finally {
+      btn.classList.remove('loading');
+    }
   };
   return btn;
 }
@@ -82,58 +230,71 @@ function buildTile(preset, i) {
   const iconWrap = document.createElement('div');
   iconWrap.className = 'icon-wrap';
   const monogram = (preset.name || '?').trim().charAt(0).toUpperCase() || '?';
-  const iconSources = (preset.steps || [])
-    .map((s) => {
-      const t = s.target || '';
-      if (/\.exe$/i.test(t)) return { type: 'exe', target: t };
-      if (/^https?:\/\//i.test(t)) return { type: 'url', target: t };
-      return null;
-    })
-    .filter(Boolean)
-    .slice(0, 4);
-
-  const makeIcon = (source, onFail) => {
-    const img = document.createElement('img');
-    img.className = 'icon';
-    img.alt = '';
-    if (source.type === 'exe') {
-      img.src = `/api/icon?path=${encodeURIComponent(source.target)}`;
-      img.onerror = onFail;
-    } else {
-      let url;
-      try {
-        url = new URL(source.target);
-      } catch {
-        // onFail so pode rodar depois que a atribuicao "const img = makeIcon(...)"
-        // do chamador terminar -- callbacks tipo "() => img.remove()" ainda
-        // nao tem "img" inicializado se chamados sincrono daqui dentro (TDZ).
-        setTimeout(onFail, 0);
-        return img;
-      }
-      img.src = `${url.origin}/favicon.ico`;
-      img.onerror = () => {
-        img.src = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(url.hostname)}`;
-        img.onerror = onFail;
-      };
-    }
-    return img;
-  };
-
-  if (iconSources.length === 0) {
-    iconWrap.textContent = monogram;
+  if (preset.icon) {
+    iconWrap.textContent = preset.icon;
     iconWrap.classList.add('fallback');
-  } else if (iconSources.length === 1) {
-    const img = makeIcon(iconSources[0], () => {
+  } else {
+    const iconSources = (preset.steps || [])
+      .map((s) => {
+        const t = s.target || '';
+        const steamId = t.match(/^steam:\/\/rungameid\/(\d+)/i);
+        if (steamId) return { type: 'steam', target: steamId[1] };
+        if (/\.exe$/i.test(t)) return { type: 'exe', target: t };
+        if (/^https?:\/\//i.test(t)) return { type: 'url', target: t };
+        return null;
+      })
+      .filter(Boolean)
+      .slice(0, 4);
+
+    const makeIcon = (source, onFail) => {
+      const img = document.createElement('img');
+      img.className = 'icon';
+      img.alt = '';
+      if (source.type === 'steam') {
+        // Capa oficial da loja Steam via CDN publico -- so precisa do appid,
+        // que ja vem embutido no target (steam://rungameid/{appid}), sem
+        // depender de pasta de instalacao local nem chave de API.
+        img.src = `https://cdn.cloudflare.steamstatic.com/steam/apps/${source.target}/header.jpg`;
+        img.onerror = onFail;
+      } else if (source.type === 'exe') {
+        img.src = `/api/icon?path=${encodeURIComponent(source.target)}`;
+        img.onerror = onFail;
+      } else {
+        let url;
+        try {
+          url = new URL(source.target);
+        } catch {
+          // onFail so pode rodar depois que a atribuicao "const img = makeIcon(...)"
+          // do chamador terminar -- callbacks tipo "() => img.remove()" ainda
+          // nao tem "img" inicializado se chamados sincrono daqui dentro (TDZ).
+          setTimeout(onFail, 0);
+          return img;
+        }
+        img.src = `${url.origin}/favicon.ico`;
+        img.onerror = () => {
+          img.src = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(url.hostname)}`;
+          img.onerror = onFail;
+        };
+      }
+      return img;
+    };
+
+    if (iconSources.length === 0) {
       iconWrap.textContent = monogram;
       iconWrap.classList.add('fallback');
-    });
-    iconWrap.appendChild(img);
-  } else {
-    iconWrap.classList.add('multi');
-    iconSources.forEach((s) => {
-      const img = makeIcon(s, () => img.remove());
+    } else if (iconSources.length === 1) {
+      const img = makeIcon(iconSources[0], () => {
+        iconWrap.textContent = monogram;
+        iconWrap.classList.add('fallback');
+      });
       iconWrap.appendChild(img);
-    });
+    } else {
+      iconWrap.classList.add('multi');
+      iconSources.forEach((s) => {
+        const img = makeIcon(s, () => img.remove());
+        iconWrap.appendChild(img);
+      });
+    }
   }
 
   const label = document.createElement('span');
@@ -177,9 +338,62 @@ function buildTile(preset, i) {
   return btn;
 }
 
-export function renderGrid() {
+function paginate(tiles) {
+  const pageCount = Math.ceil(tiles.length / PAGE_SIZE) || 1;
+
+  for (let p = 0; p < pageCount; p++) {
+    const page = document.createElement('div');
+    page.className = 'grid-page';
+    tiles.slice(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE).forEach((tile) => page.appendChild(tile));
+    grid.appendChild(page);
+  }
+
+  // Fontes web (Chakra Petch/JetBrains Mono) carregam depois do primeiro
+  // paint -- o reflow que isso causa as vezes faz o scroll-snap "corrigir"
+  // sozinho pra um scrollLeft fora de 0, deixando a pagina 2 vazar uns
+  // pixels na borda da pagina 1. Trava explicito na pagina 1 apos montar.
+  grid.scrollLeft = 0;
+
+  if (pageCount > 1) {
+    for (let p = 0; p < pageCount; p++) {
+      const dot = document.createElement('span');
+      dot.className = 'dot' + (p === 0 ? ' active' : '');
+      gridDots.appendChild(dot);
+    }
+    grid.onscroll = () => {
+      const page = Math.round(grid.scrollLeft / grid.clientWidth);
+      [...gridDots.children].forEach((d, i) => d.classList.toggle('active', i === page));
+    };
+  } else {
+    grid.onscroll = null;
+  }
+}
+
+async function renderFsLevel() {
+  const rootFolder = state.presets.find((p) => p.id === state.currentFolderId);
+  breadcrumbEl.style.display = 'block';
+  breadcrumbEl.textContent = `💾 ${rootFolder ? rootFolder.name : ''} / ${state.currentFsPath.split(/[\\/]/).pop()}`;
+
+  let entries = [];
+  try {
+    const res = await api(`/fs/list?path=${encodeURIComponent(state.currentFsPath)}`);
+    entries = res.entries;
+  } catch (e) {
+    showToast(`Erro lendo pasta: ${e.message}`, false);
+  }
+
+  const tiles = [buildFsBackTile(), ...entries.map((entry, i) => (entry.isDir ? buildFsDirTile(entry, i) : buildFsFileTile(entry, i)))];
+  paginate(tiles);
+}
+
+export async function renderGrid() {
   grid.innerHTML = '';
   gridDots.innerHTML = '';
+
+  if (state.currentFsPath) {
+    await renderFsLevel();
+    return;
+  }
 
   const here = state.presets.filter((p) => (p.parentId || null) === state.currentFolderId);
   const currentFolder = state.currentFolderId ? state.presets.find((p) => p.id === state.currentFolderId) : null;
@@ -201,35 +415,14 @@ export function renderGrid() {
   }
 
   const ordered = [...here].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-  const tiles = ordered.map((item, i) =>
-    item.kind === 'folder'
-      ? buildFolderTile(item, i, state.presets.filter((p) => p.parentId === item.id).length)
-      : buildTile(item, i)
-  );
+  const tiles = ordered.map((item, i) => {
+    if (item.kind === 'folder') return buildFolderTile(item, i, state.presets.filter((p) => p.parentId === item.id).length);
+    if (item.kind === 'fs-folder') return buildFsFolderTile(item, i);
+    return buildTile(item, i);
+  });
   if (currentFolder) tiles.unshift(buildBackTile());
 
-  const pageCount = Math.ceil(tiles.length / PAGE_SIZE) || 1;
-
-  for (let p = 0; p < pageCount; p++) {
-    const page = document.createElement('div');
-    page.className = 'grid-page';
-    tiles.slice(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE).forEach((tile) => page.appendChild(tile));
-    grid.appendChild(page);
-  }
-
-  if (pageCount > 1) {
-    for (let p = 0; p < pageCount; p++) {
-      const dot = document.createElement('span');
-      dot.className = 'dot' + (p === 0 ? ' active' : '');
-      gridDots.appendChild(dot);
-    }
-    grid.onscroll = () => {
-      const page = Math.round(grid.scrollLeft / grid.clientWidth);
-      [...gridDots.children].forEach((d, i) => d.classList.toggle('active', i === page));
-    };
-  } else {
-    grid.onscroll = null;
-  }
+  paginate(tiles);
 }
 
 async function runPreset(id, btn) {

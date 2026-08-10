@@ -7,4 +7,5 @@ export const state = {
   editingId: null,
   steps: [],
   currentFolderId: null,
+  currentFsPath: null,
 };

@@ -7,6 +7,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="theme-color" content="#0a0b0d" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="RigDeck" />
@@ -18,6 +19,8 @@
 </head>
 <body>
   <div class="scanlines" aria-hidden="true"></div>
+  <video id="nosleep-video" src="/nosleep.mp4" muted loop playsinline aria-hidden="true"
+    style="position:fixed; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
 
   <header>
     <div class="brand">
@@ -29,6 +32,7 @@
         <span class="led"></span>
         <span id="status-text">verificando</span>
       </div>
+      <button class="btn-ghost" id="toggle-fullscreen" title="Tela cheia" aria-label="Tela cheia" hidden>⛶</button>
       <button class="btn-ghost" id="toggle-edit">EDITAR</button>
     </div>
   </header>
@@ -38,6 +42,16 @@
 
   <main id="grid" aria-label="Presets"></main>
   <div id="grid-dots" class="grid-dots"></div>
+
+  <footer id="media-bar" class="media-bar">
+    <button class="media-btn" data-action="PREV" title="Faixa anterior" aria-label="Faixa anterior">⏮</button>
+    <button class="media-btn" data-action="PLAY_PAUSE" title="Play/Pause" aria-label="Play/Pause">⏯</button>
+    <button class="media-btn" data-action="NEXT" title="Próxima faixa" aria-label="Próxima faixa">⏭</button>
+    <span class="media-sep"></span>
+    <button class="media-btn" data-action="VOLUME_DOWN" title="Volume -" aria-label="Diminuir volume">🔉</button>
+    <button class="media-btn" data-action="VOLUME_UP" title="Volume +" aria-label="Aumentar volume">🔊</button>
+    <button class="media-btn" data-action="MUTE" title="Mudo" aria-label="Mudo">🔇</button>
+  </footer>
 
   <datalist id="programs-list"></datalist>
 
@@ -61,10 +75,13 @@
             <select id="item-type">
               <option value="launcher">ATALHO</option>
               <option value="folder">PASTA</option>
+              <option value="fs-folder">PASTA DO DISCO</option>
             </select>
             <select id="item-parent"></select>
           </div>
           <input id="preset-name" placeholder="NOME" />
+          <input id="item-icon" placeholder="Ícone (emoji opcional — Win+. abre o seletor)" maxlength="8" />
+          <input id="item-fs-path" placeholder="Caminho no disco (ex: C:\Users\...\Pasta)" />
           <div id="steps"></div>
           <button class="btn-ghost small" id="add-step">+ PASSO</button>
 

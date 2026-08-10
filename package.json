@@ -8,7 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
-    "test": "node --import tsx --test test/server.test.ts test/executor.test.ts test/monitors.test.ts test/programs.test.ts test/presets-store.test.ts test/stats.test.ts",
+    "test": "node --import tsx --test test/server.test.ts test/executor.test.ts test/monitors.test.ts test/programs.test.ts test/presets-store.test.ts test/stats.test.ts test/fs-scan.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

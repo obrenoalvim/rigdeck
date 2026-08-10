@@ -13,7 +13,9 @@ export interface PresetStep {
 export interface Preset {
   id: string;
   name: string;
-  kind?: 'folder' | 'launcher';
+  kind?: 'folder' | 'launcher' | 'fs-folder';
+  path?: string;
+  icon?: string;
   parentId?: string | null;
   pinned?: boolean;
   steps?: PresetStep[];

@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -8,8 +9,10 @@ import { createStore } from './lib/presets-store.js';
 import { parseMonitorsOutput } from './lib/monitors.js';
 import { parseProgramsOutput } from './lib/programs.js';
 import { runPreset, killPreset } from './lib/executor.js';
+import { launch } from './lib/launch.js';
 import { extractIcon } from './lib/icons.js';
 import { getStats } from './lib/stats.js';
+import { scanDir } from './lib/fs-scan.js';
 import { log, logError } from './lib/log.js';
 import type { Monitor, Preset, Program } from './types.js';
 
@@ -97,12 +100,25 @@ app.get('/api/version', async () => ({ version: SERVER_VERSION }));
 
 app.get('/api/presets', async () => store.list());
 
-app.post<{ Body: Partial<Preset> }>('/api/presets', async (request) => {
+function fsFolderPathError(body: Partial<Preset>): string | null {
+  if (body.kind !== 'fs-folder') return null;
+  const p = body.path;
+  if (!p || !fs.existsSync(p) || !fs.statSync(p).isDirectory()) {
+    return 'caminho invalido ou nao e uma pasta';
+  }
+  return null;
+}
+
+app.post<{ Body: Partial<Preset> }>('/api/presets', async (request, reply) => {
+  const error = fsFolderPathError(request.body);
+  if (error) return reply.code(400).send({ error });
   const preset = { ...request.body, id: request.body.id ?? randomUUID() } as Preset;
   return store.create(preset);
 });
 
 app.put<{ Params: { id: string }; Body: Partial<Preset> }>('/api/presets/:id', async (request, reply) => {
+  const error = fsFolderPathError(request.body);
+  if (error) return reply.code(400).send({ error });
   const updated = store.update(request.params.id, request.body);
   if (!updated) return reply.code(404).send({ error: 'not found' });
   return updated;
@@ -198,6 +214,31 @@ app.get<{ Querystring: { path?: string } }>('/api/icon', async (request, reply) 
   return reply.send(buf);
 });
 
+// Navegacao de pasta do disco: raiz cadastrada num preset kind=fs-folder,
+// ai o front dispara /fs/list a cada nivel (sempre le o disco na hora, nunca
+// vira preset salvo) e /fs/open pra rodar o arquivo clicado.
+// ponytail: sem confinamento de path a raiz cadastrada -- app ja nao tem
+// autenticacao e ja permite passo cmd com comando arbitrario, entao restringir
+// so essas duas rotas nao mudaria o modelo de confianca (rede local).
+app.get<{ Querystring: { path?: string } }>('/api/fs/list', async (request, reply) => {
+  const target = request.query.path;
+  if (!target) return reply.code(400).send({ error: 'path obrigatorio' });
+  try {
+    if (!fs.statSync(target).isDirectory()) return reply.code(400).send({ error: 'nao e uma pasta' });
+    return { entries: scanDir(target) };
+  } catch {
+    return reply.code(404).send({ error: 'pasta nao encontrada' });
+  }
+});
+
+app.post<{ Body: { path?: string } }>('/api/fs/open', async (request, reply) => {
+  const target = request.body.path;
+  if (!target || !fs.existsSync(target)) return reply.code(404).send({ error: 'arquivo nao encontrado' });
+  log(`fs/open: ${target}`);
+  launch(target);
+  return { ok: true };
+});
+
 app.post<{ Params: { id: string } }>('/api/presets/:id/run', async (request, reply) => {
   const preset = store.get(request.params.id);
   if (!preset) return reply.code(404).send({ error: 'not found' });
@@ -228,6 +269,24 @@ app.post<{ Params: { id: string } }>('/api/presets/:id/kill', async (request, re
   } catch (e) {
     const err = e as Error;
     logError(`POST /api/presets/${request.params.id}/kill failed:`, err.stack ?? err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+// Barra de midia fixa no rodape -- nao e um preset (nao aparece na lista do
+// editor, nao precisa de pasta), e um controle fixo sempre visivel. Reusa
+// runPreset com um preset descartavel montado na hora, ja que a logica de
+// passo "key" nao depende de estar salvo em lugar nenhum.
+const MEDIA_ACTIONS = ['PLAY_PAUSE', 'NEXT', 'PREV', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE'];
+app.post<{ Params: { action: string } }>('/api/media/:action', async (request, reply) => {
+  const action = request.params.action.toUpperCase();
+  if (!MEDIA_ACTIONS.includes(action)) return reply.code(400).send({ error: 'acao invalida' });
+  try {
+    const results = await runPreset({ id: 'media-bar', steps: [{ type: 'key', key: action }] } as Preset, []);
+    return { results };
+  } catch (e) {
+    const err = e as Error;
+    logError(`POST /api/media/${action} failed:`, err.stack ?? err.message);
     return reply.code(500).send({ error: err.message });
   }
 });

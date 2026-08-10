@@ -7,9 +7,11 @@ const editor = document.getElementById('editor');
 const presetList = document.getElementById('preset-list');
 const stepsEl = document.getElementById('steps');
 const nameInput = document.getElementById('preset-name');
+const iconInput = document.getElementById('item-icon');
 const formTitle = document.getElementById('form-title');
 const itemTypeSelect = document.getElementById('item-type');
 const itemParentSelect = document.getElementById('item-parent');
+const itemFsPathInput = document.getElementById('item-fs-path');
 
 function refresh() {
   document.dispatchEvent(new CustomEvent('deck:refresh'));
@@ -64,6 +66,7 @@ export function renderPresetList() {
     handle.className = 'drag-handle';
     handle.textContent = '⠿';
     handle.title = 'Segurar e arrastar pra reordenar';
+    handle.setAttribute('aria-label', 'Reordenar');
 
     const label = document.createElement('span');
     label.className = 'name';
@@ -71,6 +74,7 @@ export function renderPresetList() {
     const upBtn = document.createElement('button');
     upBtn.className = 'icon-btn';
     upBtn.title = 'Mover pra cima';
+    upBtn.setAttribute('aria-label', 'Mover pra cima');
     upBtn.textContent = '▲';
     upBtn.onclick = async () => {
       await api(`/presets/${preset.id}/move`, { method: 'POST', body: JSON.stringify({ direction: 'up' }) });
@@ -79,6 +83,7 @@ export function renderPresetList() {
     const downBtn = document.createElement('button');
     downBtn.className = 'icon-btn';
     downBtn.title = 'Mover pra baixo';
+    downBtn.setAttribute('aria-label', 'Mover pra baixo');
     downBtn.textContent = '▼';
     downBtn.onclick = async () => {
       await api(`/presets/${preset.id}/move`, { method: 'POST', body: JSON.stringify({ direction: 'down' }) });
@@ -87,6 +92,7 @@ export function renderPresetList() {
     const pinBtn = document.createElement('button');
     pinBtn.className = 'icon-btn pin-btn' + (preset.pinned ? ' active' : '');
     pinBtn.title = 'Fixar na primeira página';
+    pinBtn.setAttribute('aria-label', preset.pinned ? 'Desafixar' : 'Fixar na primeira página');
     pinBtn.textContent = preset.pinned ? '★' : '☆';
     pinBtn.onclick = async () => {
       await api(`/presets/${preset.id}`, { method: 'PUT', body: JSON.stringify({ pinned: !preset.pinned }) });
@@ -98,6 +104,8 @@ export function renderPresetList() {
     editBtn.onclick = () => loadIntoForm(preset);
     const delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
+    delBtn.title = 'Apagar';
+    delBtn.setAttribute('aria-label', 'Apagar');
     delBtn.textContent = '×';
     delBtn.onclick = async () => {
       const children = state.presets.filter((p) => p.parentId === preset.id);
@@ -222,18 +230,22 @@ function renderParentOptions(excludeId) {
 }
 
 function applyItemType() {
-  stepsEl.style.display = itemTypeSelect.value === 'folder' ? 'none' : '';
-  document.getElementById('add-step').style.display = itemTypeSelect.value === 'folder' ? 'none' : '';
+  const kind = itemTypeSelect.value;
+  stepsEl.style.display = kind === 'launcher' ? '' : 'none';
+  document.getElementById('add-step').style.display = kind === 'launcher' ? '' : 'none';
+  itemFsPathInput.style.display = kind === 'fs-folder' ? '' : 'none';
 }
 
 export function loadIntoForm(preset) {
   state.editingId = preset.id;
   formTitle.textContent = `Editando: ${preset.name}`;
   nameInput.value = preset.name;
+  iconInput.value = preset.icon || '';
   state.steps = JSON.parse(JSON.stringify(preset.steps || []));
   renderParentOptions(preset.id);
-  itemTypeSelect.value = preset.kind === 'folder' ? 'folder' : 'launcher';
+  itemTypeSelect.value = preset.kind === 'folder' || preset.kind === 'fs-folder' ? preset.kind : 'launcher';
   itemParentSelect.value = preset.parentId || '';
+  itemFsPathInput.value = preset.path || '';
   applyItemType();
   renderSteps();
 }
@@ -242,10 +254,12 @@ export function newForm() {
   state.editingId = null;
   formTitle.textContent = 'Novo preset';
   nameInput.value = '';
+  iconInput.value = '';
   state.steps = [];
   renderParentOptions(null);
   itemTypeSelect.value = 'launcher';
   itemParentSelect.value = state.currentFolderId || '';
+  itemFsPathInput.value = '';
   applyItemType();
   renderSteps();
 }
@@ -266,6 +280,12 @@ const STEP_KEYS = [
   ['SPACE', 'Espaço'],
   ['MAXIMIZE', 'Maximizar janela (precisa do processo)'],
   ['RESTORE', 'Restaurar janela (precisa do processo)'],
+  ['PLAY_PAUSE', '⏯ Play/Pause'],
+  ['NEXT', '⏭ Próxima faixa'],
+  ['PREV', '⏮ Faixa anterior'],
+  ['VOLUME_UP', '🔊 Volume +'],
+  ['VOLUME_DOWN', '🔉 Volume -'],
+  ['MUTE', '🔇 Mudo'],
 ];
 
 function renderSteps() {
@@ -291,6 +311,8 @@ function renderSteps() {
 
     const removeBtn = document.createElement('button');
     removeBtn.className = 'icon-btn';
+    removeBtn.title = 'Remover passo';
+    removeBtn.setAttribute('aria-label', 'Remover passo');
     removeBtn.textContent = '×';
     removeBtn.onclick = () => {
       state.steps.splice(i, 1);
@@ -437,16 +459,27 @@ document.getElementById('save-preset').onclick = async () => {
     return;
   }
   const kind = itemTypeSelect.value;
+  if (kind === 'fs-folder' && !itemFsPathInput.value.trim()) {
+    showToast('Preenche o caminho da pasta do disco.', false);
+    return;
+  }
   const data = {
     name,
     kind,
+    icon: iconInput.value.trim(),
     parentId: itemParentSelect.value || null,
-    steps: kind === 'folder' ? [] : state.steps,
+    steps: kind === 'launcher' ? state.steps : [],
   };
-  if (state.editingId) {
-    await api(`/presets/${state.editingId}`, { method: 'PUT', body: JSON.stringify(data) });
-  } else {
-    await api('/presets', { method: 'POST', body: JSON.stringify(data) });
+  if (kind === 'fs-folder') data.path = itemFsPathInput.value.trim();
+  try {
+    if (state.editingId) {
+      await api(`/presets/${state.editingId}`, { method: 'PUT', body: JSON.stringify(data) });
+    } else {
+      await api('/presets', { method: 'POST', body: JSON.stringify(data) });
+    }
+  } catch (e) {
+    showToast(`Erro salvando: ${e.message}`, false);
+    return;
   }
   newForm();
   refresh();

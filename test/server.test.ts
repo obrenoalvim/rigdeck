@@ -4,6 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+const fsFolderDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rigdeck-fsfolder-'));
+fs.writeFileSync(path.join(fsFolderDir, 'nota.txt'), 'oi');
+fs.mkdirSync(path.join(fsFolderDir, 'sub'));
+
 const tempFile = path.join(os.tmpdir(), `server-test-presets-${Date.now()}.json`);
 process.env.PRESETS_FILE = tempFile;
 process.env.NODE_ENV = 'test';
@@ -22,6 +26,7 @@ test.before(async () => {
 test.after(async () => {
   await app.close();
   fs.rmSync(tempFile, { force: true });
+  fs.rmSync(fsFolderDir, { recursive: true, force: true });
 });
 
 async function api(pathName: string, opts?: RequestInit): Promise<Response> {
@@ -173,6 +178,60 @@ test('POST /api/presets/:id/move troca de posicao só com os irmãos (mesma pare
   const notFound = await api('/api/presets/nada/move', {
     method: 'POST',
     body: JSON.stringify({ direction: 'up' }),
+  });
+  assert.strictEqual(notFound.status, 404);
+});
+
+test('POST /api/presets kind fs-folder exige path valido apontando pra pasta existente', async () => {
+  const semPath = await api('/api/presets', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Scripts', kind: 'fs-folder' }),
+  });
+  assert.strictEqual(semPath.status, 400);
+
+  const pathInexistente = await api('/api/presets', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Scripts', kind: 'fs-folder', path: path.join(fsFolderDir, 'nao-existe') }),
+  });
+  assert.strictEqual(pathInexistente.status, 400);
+
+  const arquivoNaoPasta = await api('/api/presets', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Scripts', kind: 'fs-folder', path: path.join(fsFolderDir, 'nota.txt') }),
+  });
+  assert.strictEqual(arquivoNaoPasta.status, 400);
+
+  const ok = await api('/api/presets', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Scripts', kind: 'fs-folder', path: fsFolderDir }),
+  });
+  assert.strictEqual(ok.status, 200);
+  const created = await ok.json();
+  assert.strictEqual(created.path, fsFolderDir);
+});
+
+test('GET /api/fs/list lista o conteudo da pasta; 404 se nao existe', async () => {
+  const res = await api(`/api/fs/list?path=${encodeURIComponent(fsFolderDir)}`);
+  const body = await res.json();
+  assert.strictEqual(res.status, 200);
+  assert.deepStrictEqual(
+    body.entries.map((e: { name: string }) => e.name),
+    ['sub', 'nota.txt']
+  );
+  assert.strictEqual(body.entries[0].isDir, true);
+
+  const notFound = await api(`/api/fs/list?path=${encodeURIComponent(path.join(fsFolderDir, 'nao-existe'))}`);
+  assert.strictEqual(notFound.status, 404);
+});
+
+// So testa o caso de erro -- o caso de sucesso chama launch() de verdade
+// (abre o app padrao do arquivo), o que abriria uma janela real durante
+// o test run. Cobertura de "abre o processo certo" ja existe em launch
+// (usado tambem pelos steps normais de preset).
+test('POST /api/fs/open 404 se arquivo nao existe', async () => {
+  const notFound = await api('/api/fs/open', {
+    method: 'POST',
+    body: JSON.stringify({ path: path.join(fsFolderDir, 'nao-existe.txt') }),
   });
   assert.strictEqual(notFound.status, 404);
 });

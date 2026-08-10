@@ -35,9 +35,9 @@ function statLevel(pct) {
   return 'ok';
 }
 
-function statMini(label, pct, valueText) {
+function statMini(label, pct, valueText, extraClass = '') {
   const el = document.createElement('div');
-  el.className = `stat-mini ${statLevel(pct)}`;
+  el.className = `stat-mini ${statLevel(pct)} ${extraClass}`.trim();
   el.innerHTML = `
     <span class="stat-mini-label">${label}</span>
     <span class="stat-mini-bar"><span class="stat-mini-fill" style="width:${Math.min(pct, 100)}%"></span></span>
@@ -52,7 +52,7 @@ export async function pollStats() {
     statsEl.innerHTML = '';
     statsEl.appendChild(statMini('CPU', s.cpuPercent, `${s.cpuPercent}%`));
     statsEl.appendChild(statMini('RAM', s.ramPercent, `${s.ramUsedGB}/${s.ramTotalGB}GB`));
-    statsEl.appendChild(statMini('DISCO', s.diskPercent, `${s.diskFreeGB}GB livre`));
+    statsEl.appendChild(statMini('DISCO', s.diskPercent, `${s.diskFreeGB}GB livre`, 'disk'));
   } catch {
     statsEl.innerHTML = '';
   }
