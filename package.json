@@ -8,7 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
-    "test": "node --import tsx --test test/server.test.ts test/executor.test.ts test/monitors.test.ts test/programs.test.ts test/presets-store.test.ts test/stats.test.ts test/fs-scan.test.ts",
+    "test": "node --import tsx --test test/server.test.ts test/executor.test.ts test/monitors.test.ts test/programs.test.ts test/presets-store.test.ts test/stats.test.ts test/fs-scan.test.ts test/keybind.test.ts test/icon-fetch.test.ts test/obs.test.ts test/audio.test.ts test/icons.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -23,10 +23,12 @@
   "license": "MIT",
   "dependencies": {
     "@fastify/static": "^10.1.3",
-    "fastify": "^5.0.0"
+    "fastify": "^5.0.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },

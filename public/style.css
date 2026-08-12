@@ -9,6 +9,7 @@
   --accent: #ff8a1e;
   --accent-soft: rgba(255, 138, 30, 0.16);
   --ok: #4ade80;
+  --accent-strong: #ff5a1f;
   --fail: #ff5c5c;
   --font-display: "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
@@ -180,6 +181,12 @@ header h1 span {
   color: var(--accent);
 }
 
+.btn-ghost.icon-only {
+  padding: 8px 10px;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .btn-solid {
   background: var(--accent);
   border: 1px solid var(--accent);
@@ -234,11 +241,11 @@ header h1 span {
 .stat-mini-fill {
   display: block;
   height: 100%;
-  background: var(--ok);
+  background: var(--accent);
   transition: width 0.4s ease;
 }
 
-.stat-mini.warn .stat-mini-fill { background: var(--accent); }
+.stat-mini.warn .stat-mini-fill { background: var(--accent-strong); }
 .stat-mini.crit .stat-mini-fill { background: var(--fail); }
 
 .media-bar {
@@ -520,7 +527,7 @@ header h1 span {
   border-radius: 12px;
 }
 
-#editor {
+#editor, #audio-mixer {
   display: none;
   position: fixed;
   inset: 0;
@@ -530,7 +537,7 @@ header h1 span {
   overflow-y: auto;
 }
 
-#editor.open {
+#editor.open, #audio-mixer.open {
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -605,6 +612,11 @@ header h1 span {
   align-items: center;
 }
 
+.preset-search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
 #preset-list {
   display: flex;
   flex-direction: column;
@@ -642,6 +654,12 @@ header h1 span {
   opacity: 0.85;
   box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.6);
   transition: none;
+}
+
+.preset-row.drop-target-folder {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
 }
 
 .drag-handle {
@@ -784,6 +802,29 @@ input:focus, select:focus {
 
 #toast.fail { border-left-color: var(--fail); }
 
+#toast.action {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-left-color: var(--accent);
+}
+
+.toast-action {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.toast-action:hover { background: var(--accent-soft); }
+
 @keyframes slideup {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -807,6 +848,12 @@ input:focus, select:focus {
   .editor-inner { padding: 16px; }
   .media-bar { padding: 6px 16px; gap: 6px; }
   .media-btn { width: 32px; height: 32px; font-size: 13px; }
+  /* Fader mais curto em tela baixa (celular deitado) -- senao a coluna do
+     canal (icone+label+fader+val+mute) nao cabe na altura disponivel sem
+     rolar demais. Largura do fader/botao de mute nao encolhe -- area de
+     toque continua prioridade mesmo com tela pequena. */
+  .fader-row, .fader-wrap, .audio-meter { height: 130px; }
+  .audio-slider.vertical { width: 130px; }
 }
 
 /* Tela pequena (estreita OU baixa): no maximo 4 botoes por vez, numa
@@ -915,3 +962,340 @@ input:focus, select:focus {
   .icon-wrap.fallback { width: 46px; height: 46px; font-size: 20px; }
   .tile-label { font-size: 12px; }
 }
+
+/* --- Now playing (header) -- escondido em telas estreitas, celular vertical
+   nao tem folga nenhuma ai, entao so aparece a partir do breakpoint largo. */
+.now-playing {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  overflow: hidden;
+}
+
+.now-playing.active {
+  opacity: 1;
+}
+
+.now-playing-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+#now-playing-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 760px) {
+  .now-playing { display: flex; }
+}
+
+/* --- Troca de perfil contextual (trigger process picker) ------------------ */
+
+.trigger-picker { margin-bottom: 12px; position: relative; }
+.trigger-picker input { width: 100%; }
+
+.trigger-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--panel-raised);
+  border: 1px solid var(--edge-light);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.trigger-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.trigger-suggestion:hover { background: var(--accent-soft); }
+
+.trigger-suggestion img {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.trigger-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.trigger-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.trigger-chip img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.trigger-chip button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.trigger-chip button:hover { color: var(--fail); }
+
+/* --- Mixer de audio --------------------------------------------------------
+   Linha horizontal -- so usada pelo EQ (graves/agudos) e pitch de voz hoje,
+   volume (master/mic/apps) virou fader vertical (ver .channel-strip abaixo). */
+.audio-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--edge);
+}
+
+.audio-row:last-child { border-bottom: none; }
+
+.audio-row-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.audio-row-icon.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  font-size: 15px;
+}
+
+.audio-row-label {
+  flex: 0 0 110px;
+  min-width: 0;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-slider {
+  accent-color: var(--accent);
+  height: 4px;
+  background: transparent;
+  border: none;
+}
+
+/* EQ/pitch (horizontal): trilha fina, mas com folga vertical de toque --
+   app e touch-first (celular), 4px sozinho e apertado demais pro dedo. */
+.audio-row .audio-slider {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.audio-row-val {
+  flex: 0 0 40px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-mute-btn {
+  width: 44px;
+  height: 44px;
+  font-size: 15px;
+}
+
+.audio-mute-btn.muted {
+  border-color: var(--fail);
+  color: var(--fail);
+}
+
+.audio-empty-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 20px 4px;
+  text-align: center;
+}
+
+/* --- Canais verticais (master/mic/apps) -- tipo mesa de som de verdade --- */
+
+.mixer-channels {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 4px 14px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--edge-light);
+}
+
+.channel-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 84px;
+}
+
+.channel-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.channel-val {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.fader-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 180px;
+}
+
+/* Slider nativo horizontal girado -90deg pra virar fader vertical -- funciona
+   em qualquer navegador (Safari iOS incluso), diferente de depender de
+   `writing-mode`/`-moz-orient` (suporte inconsistente entre engines). O
+   container centraliza o elemento ja com largura/altura trocadas, sem
+   precisar de translate manual. Largura do fader (44px) e o botao de mute
+   (44x44, ver .audio-mute-btn) seguem a area minima de toque confiavel
+   recomendada pra celular (~48dp/9mm) -- 36px/30px de antes ficava apertado. */
+.fader-wrap {
+  width: 44px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.audio-slider.vertical {
+  width: 180px;
+  height: 44px;
+  padding: 0 8px;
+  transform: rotate(-90deg);
+}
+
+.audio-meter {
+  width: 8px;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 3px;
+  background: var(--edge);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.audio-meter-fill {
+  display: block;
+  width: 100%;
+  height: 0%;
+  background: var(--accent);
+  transition: height 0.1s linear;
+}
+
+.channels-hint {
+  align-self: center;
+  padding: 0 8px;
+}
+
+.audio-eq-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.audio-sounds-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sound-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 20px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sound-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.sound-chip .sound-chip-del {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.sound-chip .sound-chip-del:hover { color: var(--fail); }
+
+.audio-add-sound {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.audio-add-sound input { flex: 1; min-width: 160px; }

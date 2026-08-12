@@ -1,4 +1,14 @@
-export type StepType = 'launch' | 'cmd' | 'key';
+export type StepType = 'launch' | 'cmd' | 'key' | 'sound' | 'obs';
+
+export type ObsAction =
+  | 'scene'
+  | 'mic-mute'
+  | 'mic-unmute'
+  | 'mic-toggle'
+  | 'start-record'
+  | 'stop-record'
+  | 'start-stream'
+  | 'stop-stream';
 
 export interface PresetStep {
   type: StepType;
@@ -8,6 +18,17 @@ export interface PresetStep {
   fullscreen?: boolean;
   command?: string;
   key?: string;
+  path?: string;
+  action?: ObsAction;
+  sceneName?: string;
+  inputName?: string;
+}
+
+export interface Sound {
+  id: string;
+  name: string;
+  path: string | null;
+  keybind: string | null;
 }
 
 export interface Preset {
@@ -19,6 +40,7 @@ export interface Preset {
   parentId?: string | null;
   pinned?: boolean;
   steps?: PresetStep[];
+  triggerProcess?: string | null;
 }
 
 export interface Monitor {

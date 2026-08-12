@@ -27,13 +27,17 @@
       <span class="brand-mark">//</span>
       <h1>RIG<span>DECK</span></h1>
     </div>
+    <div id="now-playing" class="now-playing">
+      <span class="now-playing-icon">♪</span>
+      <span id="now-playing-text"></span>
+    </div>
     <div class="header-right">
       <div id="status" class="status">
         <span class="led"></span>
         <span id="status-text">verificando</span>
       </div>
       <button class="btn-ghost" id="toggle-fullscreen" title="Tela cheia" aria-label="Tela cheia" hidden>⛶</button>
-      <button class="btn-ghost" id="toggle-edit">EDITAR</button>
+      <button class="btn-ghost icon-only" id="toggle-edit" title="Configurar" aria-label="Configurar">⚙</button>
     </div>
   </header>
 
@@ -51,9 +55,12 @@
     <button class="media-btn" data-action="VOLUME_DOWN" title="Volume -" aria-label="Diminuir volume">🔉</button>
     <button class="media-btn" data-action="VOLUME_UP" title="Volume +" aria-label="Aumentar volume">🔊</button>
     <button class="media-btn" data-action="MUTE" title="Mudo" aria-label="Mudo">🔇</button>
+    <span class="media-sep"></span>
+    <button class="media-btn" id="open-audio-mixer" title="Mixer de som" aria-label="Mixer de som">🎚️</button>
   </footer>
 
   <datalist id="programs-list"></datalist>
+  <datalist id="obs-scenes-list"></datalist>
 
   <section id="editor">
     <div class="editor-inner">
@@ -66,6 +73,7 @@
             <button class="btn-ghost small" id="import-btn">⬆ IMPORTAR</button>
             <input type="file" id="import-file" accept=".json" hidden />
           </div>
+          <input id="preset-search" placeholder="🔎 Buscar preset por nome..." class="preset-search" />
           <div id="preset-list"></div>
         </div>
 
@@ -82,6 +90,11 @@
           <input id="preset-name" placeholder="NOME" />
           <input id="item-icon" placeholder="Ícone (emoji opcional — Win+. abre o seletor)" maxlength="8" />
           <input id="item-fs-path" placeholder="Caminho no disco (ex: C:\Users\...\Pasta)" />
+          <div class="trigger-picker">
+            <input id="item-trigger-process" placeholder="Abrir esta pasta sozinho quando eu jogar/abrir... (busque pelo nome, ex: CS2)" autocomplete="off" />
+            <div id="item-trigger-suggestions" class="trigger-suggestions" hidden></div>
+            <div id="item-trigger-chips" class="trigger-chips"></div>
+          </div>
           <div id="steps"></div>
           <button class="btn-ghost small" id="add-step">+ PASSO</button>
 
@@ -90,6 +103,33 @@
             <button class="btn-ghost" id="new-preset">LIMPAR / NOVO</button>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="audio-mixer">
+    <div class="editor-inner">
+      <h2><span class="tag">AUDIO</span> Mixer de Som</h2>
+
+      <div id="audio-channels" class="mixer-channels"></div>
+
+      <h3>Graves / Agudos</h3>
+      <div id="audio-eq"></div>
+
+      <h3>Voz</h3>
+      <div id="audio-voice"></div>
+
+      <h3>Efeitos</h3>
+      <div id="audio-sounds" class="audio-sounds-grid"></div>
+      <div class="audio-add-sound">
+        <input id="audio-sound-name" placeholder="Nome (ex: Buzina)" />
+        <input id="audio-sound-path" placeholder="Caminho do arquivo (opcional se usar atalho)" />
+        <input id="audio-sound-keybind" placeholder="Atalho do Discord (opcional, ex: ctrl+1)" />
+        <button class="btn-ghost small" id="audio-sound-add">+ SOM</button>
+      </div>
+
+      <div class="editor-actions">
+        <button class="btn-ghost" id="audio-mixer-close">FECHAR</button>
       </div>
     </div>
   </section>

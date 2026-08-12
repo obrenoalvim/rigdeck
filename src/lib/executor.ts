@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from './launch.js';
 import { logError } from './log.js';
+import { sendObsRequest } from './obs.js';
 import type { Monitor, Preset, PresetStep, StepResult } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,6 +13,7 @@ const PLACE_SCRIPT = path.join(SCRIPTS_DIR, 'place-window.ps1');
 const OPEN_APP_SCRIPT = path.join(SCRIPTS_DIR, 'open-app-window.ps1');
 const CLOSE_WINDOW_SCRIPT = path.join(SCRIPTS_DIR, 'close-window.ps1');
 const SEND_KEY_SCRIPT = path.join(SCRIPTS_DIR, 'send-key.ps1');
+const PLAY_SOUND_SCRIPT = path.join(SCRIPTS_DIR, 'play-sound.ps1');
 
 // --app=<url> so existe em navegadores Chromium -- Firefox ja e um atalho
 // separado (nao usa esse modo), entao nem entra na lista.
@@ -135,10 +137,68 @@ function runCommand(command?: string): Promise<StepResult> {
   });
 }
 
-function sendKey(key?: string, processName?: string): Promise<StepResult> {
+export function sendKey(key?: string, processName?: string): Promise<StepResult> {
   const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', SEND_KEY_SCRIPT, '-Key', key ?? ''];
   if (processName) args.push('-ProcessName', processName);
   return runPs(args, 20000, `send-key.ps1 (key "${key}")`);
+}
+
+// Nao espera o som acabar de tocar (PlaySync bloqueia pela duracao inteira
+// do arquivo) -- so confirma que o processo subiu, senao um efeito sonoro
+// de 5s deixaria o botao "carregando" travado por 5s pra um preset que so
+// deveria ser instantaneo.
+export function playSound(filePath: string): Promise<StepResult> {
+  return new Promise((resolve) => {
+    const child = execFile(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PLAY_SOUND_SCRIPT, '-Path', filePath],
+      (err, _stdout, stderr) => {
+        if (err) logError(`play-sound.ps1 falhou pra "${filePath}":`, err.message, stderr ? `stderr: ${stderr}` : '');
+      }
+    );
+    child.once('spawn', () => resolve({ ok: true }));
+    child.once('error', (err) => resolve({ ok: false, error: err.message }));
+  });
+}
+
+// OBS_ACTIONS -- lista fechada de acoes comuns em vez de expor requestType
+// cru do obs-websocket direto no editor (mais amigavel, e cobre o que
+// STREAMDECK GAPS.md apontou como mais pedido: trocar cena, mutar mic,
+// gravar/streamar).
+async function runObsAction(step: PresetStep): Promise<StepResult> {
+  try {
+    switch (step.action) {
+      case 'scene':
+        await sendObsRequest('SetCurrentProgramScene', { sceneName: step.sceneName });
+        break;
+      case 'mic-mute':
+        await sendObsRequest('SetInputMute', { inputName: step.inputName || 'Mic/Aux', inputMuted: true });
+        break;
+      case 'mic-unmute':
+        await sendObsRequest('SetInputMute', { inputName: step.inputName || 'Mic/Aux', inputMuted: false });
+        break;
+      case 'mic-toggle':
+        await sendObsRequest('ToggleInputMute', { inputName: step.inputName || 'Mic/Aux' });
+        break;
+      case 'start-record':
+        await sendObsRequest('StartRecord');
+        break;
+      case 'stop-record':
+        await sendObsRequest('StopRecord');
+        break;
+      case 'start-stream':
+        await sendObsRequest('StartStream');
+        break;
+      case 'stop-stream':
+        await sendObsRequest('StopStream');
+        break;
+      default:
+        throw new Error(`acao OBS desconhecida: ${step.action}`);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }
 
 function killProcess(processName: string): Promise<StepResult> {
@@ -162,8 +222,8 @@ function killByPid(pid: number): Promise<StepResult> {
 export async function killPreset(preset: Preset): Promise<StepResult[]> {
   const results: StepResult[] = [];
   for (const step of preset.steps ?? []) {
-    if (step.type === 'cmd' || step.type === 'key') {
-      continue; // comando/tecla ja disparou e acabou, nao ha nada pra "segurar-pra-fechar"
+    if (step.type === 'cmd' || step.type === 'key' || step.type === 'sound' || step.type === 'obs') {
+      continue; // comando/tecla/som/obs ja disparou e acabou, nao ha nada pra "segurar-pra-fechar"
     }
     const pidKey = pidKeyFor(preset.id, step);
     const tracked = lastHandles.get(pidKey);
@@ -187,25 +247,48 @@ export async function killPreset(preset: Preset): Promise<StepResult[]> {
   return results;
 }
 
-export async function runPreset(preset: Preset, monitors: Monitor[]): Promise<StepResult[]> {
+// onStep(entry, index, total) e opcional -- chamado logo apos CADA step
+// terminar, pra quem quiser dar feedback progressivo (ex: streaming HTTP)
+// em vez de esperar o preset inteiro rodar pra saber que o passo 1 ja falhou.
+export async function runPreset(
+  preset: Preset,
+  monitors: Monitor[],
+  onStep?: (entry: StepResult, index: number, total: number) => void
+): Promise<StepResult[]> {
   const results: StepResult[] = [];
+  const record = (entry: StepResult) => {
+    results.push(entry);
+    if (onStep) onStep(entry, results.length - 1, preset.steps?.length ?? 0);
+  };
   for (const step of preset.steps ?? []) {
     if (step.type === 'cmd') {
       const result = await runCommand(step.command);
-      results.push({ step: step.command, ...result });
+      record({ step: step.command, ...result });
       continue;
     }
 
     if (step.type === 'key') {
       const result = await sendKey(step.key, step.processName);
-      results.push({ step: step.key, ...result });
+      record({ step: step.key, ...result });
+      continue;
+    }
+
+    if (step.type === 'sound') {
+      const result = await playSound(step.path!);
+      record({ step: step.path, ...result });
+      continue;
+    }
+
+    if (step.type === 'obs') {
+      const result = await runObsAction(step);
+      record({ step: step.action === 'scene' ? `obs: ${step.sceneName}` : `obs: ${step.action}`, ...result });
       continue;
     }
 
     let monitor = monitors[step.monitor ?? 0];
     if (!monitor) monitor = monitors.find((m) => m.primary) ?? monitors[0];
     if (!monitor) {
-      results.push({ step: step.target, ok: false, error: 'no monitor available' });
+      record({ step: step.target, ok: false, error: 'no monitor available' });
       continue;
     }
     const pidKey = pidKeyFor(preset.id, step);
@@ -213,12 +296,12 @@ export async function runPreset(preset: Preset, monitors: Monitor[]): Promise<St
     if (isUrl(step.target)) {
       const result = await openAppWindow(step, monitor);
       if (typeof result.hwnd === 'number') lastHandles.set(pidKey, { kind: 'hwnd', value: result.hwnd });
-      results.push({ step: step.target, ...result });
+      record({ step: step.target, ...result });
     } else {
       launch(step.target!);
       const result = await placeWindow(step, monitor);
       if (typeof result.pid === 'number') lastHandles.set(pidKey, { kind: 'pid', value: result.pid });
-      results.push({ step: step.target, ...result });
+      record({ step: step.target, ...result });
     }
   }
   return results;

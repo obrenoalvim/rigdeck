@@ -8,13 +8,25 @@ import { fileURLToPath } from 'node:url';
 import { createStore } from './lib/presets-store.js';
 import { parseMonitorsOutput } from './lib/monitors.js';
 import { parseProgramsOutput } from './lib/programs.js';
-import { runPreset, killPreset } from './lib/executor.js';
+import { runPreset, killPreset, playSound, sendKey } from './lib/executor.js';
 import { launch } from './lib/launch.js';
 import { extractIcon } from './lib/icons.js';
+import { lookupIcon } from './lib/icon-fetch.js';
 import { getStats } from './lib/stats.js';
 import { scanDir } from './lib/fs-scan.js';
 import { log, logError } from './lib/log.js';
-import type { Monitor, Preset, Program } from './types.js';
+import { translateKeybind } from './lib/keybind.js';
+import {
+  getAudioState,
+  setAudioVolume,
+  subscribeMeters,
+  getEqState,
+  setEq,
+  getVoiceState,
+  setVoiceEffect,
+} from './lib/audio.js';
+import { sendObsRequest } from './lib/obs.js';
+import type { Monitor, Preset, Program, Sound } from './types.js';
 
 process.on('uncaughtException', (err) => logError('uncaughtException', err.stack ?? err));
 process.on('unhandledRejection', (err) => logError('unhandledRejection', err));
@@ -23,9 +35,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 4321;
 const SERVER_VERSION = String(Date.now());
 const PROJECT_ROOT = path.join(__dirname, '..');
-const store = createStore(process.env.PRESETS_FILE ?? path.join(PROJECT_ROOT, 'presets.json'));
+const store = createStore<Preset>(process.env.PRESETS_FILE ?? path.join(PROJECT_ROOT, 'presets.json'));
+const soundsStore = createStore<Sound>(process.env.SOUNDS_FILE ?? path.join(PROJECT_ROOT, 'sounds.json'));
 const GET_MONITORS_SCRIPT = path.join(PROJECT_ROOT, 'scripts', 'get-monitors.ps1');
 const GET_PROGRAMS_SCRIPT = path.join(PROJECT_ROOT, 'scripts', 'get-programs.ps1');
+const GET_FOREGROUND_SCRIPT = path.join(PROJECT_ROOT, 'scripts', 'get-foreground-process.ps1');
+const GET_NOW_PLAYING_SCRIPT = path.join(PROJECT_ROOT, 'scripts', 'get-now-playing.ps1');
 
 function runPowershell<T>(scriptPath: string, parse: (stdout: string) => T): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -180,6 +195,40 @@ app.post('/api/programs/refresh', async (_request, reply) => {
   }
 });
 
+function runPowershellArgs<T>(args: string[], timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    execFile('powershell.exe', args, { timeout: timeoutMs }, (err, stdout) => {
+      if (err) return reject(err);
+      try {
+        resolve(JSON.parse(String(stdout).trim()));
+      } catch {
+        reject(new Error('bad script output'));
+      }
+    });
+  });
+}
+
+// Processo em foreground -- usado pelo frontend pra trocar de pasta sozinho
+// quando o jogo/app associado a ela ganha foco (troca de perfil contextual).
+app.get('/api/active-window', async (_request, reply) => {
+  try {
+    return await runPowershellArgs(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', GET_FOREGROUND_SCRIPT], 5000);
+  } catch (e) {
+    return reply.code(500).send({ ok: false, error: (e as Error).message });
+  }
+});
+
+app.get('/api/media/now-playing', async (_request, reply) => {
+  try {
+    return await runPowershellArgs(
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', GET_NOW_PLAYING_SCRIPT],
+      8000
+    );
+  } catch (e) {
+    return reply.code(500).send({ ok: false, error: (e as Error).message });
+  }
+});
+
 app.get('/api/export', async (_request, reply) => {
   const date = new Date().toISOString().slice(0, 10);
   reply.header('Content-Disposition', `attachment; filename="rigdeck-backup-${date}.json"`);
@@ -214,6 +263,174 @@ app.get<{ Querystring: { path?: string } }>('/api/icon', async (request, reply) 
   return reply.send(buf);
 });
 
+// Fallback quando nao ha icone local (Epic games, exe sem icone embutido):
+// busca por nome na Steam Store (sem chave) e cacheia a capa em disco --
+// so bate na rede na primeira vez, depois serve do cache local direto.
+app.get<{ Querystring: { name?: string; target?: string } }>('/api/icon/lookup', async (request, reply) => {
+  const { name, target } = request.query;
+  if (!name) return reply.code(400).send({ error: 'name obrigatorio' });
+  try {
+    const filePath = await lookupIcon(name, target);
+    if (!filePath) return reply.code(404).send();
+    reply.header('Content-Type', 'image/jpeg');
+    reply.header('Cache-Control', 'public, max-age=86400');
+    return reply.send(fs.createReadStream(filePath));
+  } catch (e) {
+    const err = e as Error;
+    logError('GET /api/icon/lookup failed:', err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+app.get('/api/audio', async (_request, reply) => {
+  try {
+    return await getAudioState();
+  } catch (e) {
+    const err = e as Error;
+    logError('GET /api/audio failed:', err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+app.post<{ Body: { volume?: number; muted?: boolean } }>('/api/audio/master', async (request, reply) => {
+  try {
+    await setAudioVolume({ target: 'master', volume: request.body.volume, muted: request.body.muted });
+    return { ok: true };
+  } catch (e) {
+    const err = e as Error;
+    logError('POST /api/audio/master failed:', err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+app.post<{ Body: { volume?: number; muted?: boolean } }>('/api/audio/mic', async (request, reply) => {
+  try {
+    await setAudioVolume({ target: 'mic', volume: request.body.volume, muted: request.body.muted });
+    return { ok: true };
+  } catch (e) {
+    const err = e as Error;
+    logError('POST /api/audio/mic failed:', err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+app.post<{ Params: { pid: string }; Body: { volume?: number; muted?: boolean } }>(
+  '/api/audio/session/:pid',
+  async (request, reply) => {
+    try {
+      await setAudioVolume({ target: 'session', pid: request.params.pid, volume: request.body.volume, muted: request.body.muted });
+      return { ok: true };
+    } catch (e) {
+      const err = e as Error;
+      logError(`POST /api/audio/session/${request.params.pid} failed:`, err.message);
+      return reply.code(500).send({ error: err.message });
+    }
+  }
+);
+
+// VU meter ao vivo -- SSE em vez de poll: fica aberto so enquanto o mixer
+// tiver na tela (frontend fecha o EventSource ao fechar o modal), o unsubscribe
+// (via close da conexao) derruba o processo PowerShell residente quando
+// ninguem mais ouve. reply.hijack() tira o Fastify do caminho da resposta --
+// sem isso ele tenta finalizar a reply sozinho assim que o handler retorna,
+// o que fecharia o stream SSE na hora.
+app.get('/api/audio/meters', async (request, reply) => {
+  reply.hijack();
+  reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+  const unsubscribe = subscribeMeters((data) => {
+    reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+  });
+  request.raw.on('close', unsubscribe);
+  reply.raw.on('error', unsubscribe);
+});
+
+app.get('/api/audio/eq', async (_request, reply) => {
+  try {
+    return getEqState();
+  } catch (e) {
+    const err = e as Error;
+    logError('GET /api/audio/eq failed:', err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+app.post<{ Body: { bass?: number; treble?: number } }>('/api/audio/eq', async (request, reply) => {
+  try {
+    return { ok: true, ...setEq({ bass: request.body.bass, treble: request.body.treble }) };
+  } catch (e) {
+    const err = e as Error;
+    logError('POST /api/audio/eq failed:', err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+app.get('/api/audio/voice', async () => getVoiceState());
+
+app.post<{ Body: { voice?: string; pitch?: number; enabled?: boolean } }>('/api/audio/voice', async (request, reply) => {
+  try {
+    return await setVoiceEffect({ voice: request.body.voice, pitch: request.body.pitch, enabled: request.body.enabled });
+  } catch (e) {
+    const err = e as Error;
+    logError('POST /api/audio/voice failed:', err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
+// Le a lista de cenas direto do OBS (via websocket) pra popular o dropdown
+// do editor -- se o OBS nao estiver aberto/websocket desligado, devolve
+// lista vazia (editor cai pro campo de texto livre) em vez de quebrar a tela.
+app.get('/api/obs/scenes', async () => {
+  try {
+    const { scenes } = (await sendObsRequest('GetSceneList')) as { scenes: Array<{ sceneName: string }> };
+    return scenes.map((s) => s.sceneName);
+  } catch {
+    return [];
+  }
+});
+
+app.get('/api/sounds', async () => soundsStore.list());
+
+// Som local (toca no PC, so quem estiver no PC ouve) OU keybind do Discord
+// (aciona um som ja cadastrado no Soundboard nativo do Discord -- a mistura
+// com a voz acontece dentro do proprio Discord, sem precisar rotear
+// dispositivo de audio nenhum. Trocar o dispositivo padrao do sistema pra
+// isso foi tentado e descartado: bagunca outros apps de audio rodando
+// junto, como o proprio gravador/call que a feature deveria ajudar).
+app.post<{ Body: { name?: string; path?: string; keybind?: string } }>('/api/sounds', async (request, reply) => {
+  const { name, path: soundPath, keybind } = request.body;
+  if (!name || (!soundPath && !keybind)) {
+    return reply.code(400).send({ error: 'nome e (caminho ou atalho) obrigatorios' });
+  }
+  if (soundPath && !fs.existsSync(soundPath)) {
+    return reply.code(400).send({ error: 'arquivo nao encontrado nesse caminho' });
+  }
+  if (keybind) {
+    try {
+      translateKeybind(keybind);
+    } catch (e) {
+      return reply.code(400).send({ error: `atalho invalido: ${(e as Error).message}` });
+    }
+  }
+  return soundsStore.create({ id: randomUUID(), name, path: soundPath ?? null, keybind: keybind ?? null });
+});
+
+app.delete<{ Params: { id: string } }>('/api/sounds/:id', async (request) => {
+  soundsStore.remove(request.params.id);
+  return { ok: true };
+});
+
+app.post<{ Params: { id: string } }>('/api/sounds/:id/play', async (request, reply) => {
+  const sound = soundsStore.get(request.params.id);
+  if (!sound) return reply.code(404).send({ error: 'not found' });
+  try {
+    return sound.keybind ? await sendKey(translateKeybind(sound.keybind)) : await playSound(sound.path!);
+  } catch (e) {
+    const err = e as Error;
+    logError(`POST /api/sounds/${request.params.id}/play failed:`, err.message);
+    return reply.code(500).send({ error: err.message });
+  }
+});
+
 // Navegacao de pasta do disco: raiz cadastrada num preset kind=fs-folder,
 // ai o front dispara /fs/list a cada nivel (sempre le o disco na hora, nunca
 // vira preset salvo) e /fs/open pra rodar o arquivo clicado.
@@ -239,22 +456,32 @@ app.post<{ Body: { path?: string } }>('/api/fs/open', async (request, reply) => 
   return { ok: true };
 });
 
+// Streama um resultado por linha (NDJSON) a medida que cada step termina,
+// em vez de so responder no final -- preset com varios steps (ex: abrir
+// Spotify + Brave + VSCode) deixava o usuario sem feedback nenhum ate tudo
+// rodar. Compatibilidade: preset de 1 step so continua parecendo instantaneo.
 app.post<{ Params: { id: string } }>('/api/presets/:id/run', async (request, reply) => {
   const preset = store.get(request.params.id);
   if (!preset) return reply.code(404).send({ error: 'not found' });
   log(`running preset "${preset.name}" (${preset.id}):`, JSON.stringify(preset.steps));
+  reply.hijack();
+  reply.raw.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
   try {
     const monitors = await getMonitors();
     log('monitors detected:', JSON.stringify(monitors));
-    const results = await runPreset(preset, monitors);
+    const results = await runPreset(preset, monitors, (entry, index, total) => {
+      reply.raw.write(JSON.stringify({ type: 'step', index, total, ...entry }) + '\n');
+    });
     log(`preset "${preset.name}" results:`, JSON.stringify(results));
     const failed = results.filter((r) => !r.ok);
     if (failed.length) logError(`preset "${preset.name}" step failures:`, JSON.stringify(failed));
-    return { results };
+    reply.raw.write(JSON.stringify({ type: 'done', results }) + '\n');
+    reply.raw.end();
   } catch (e) {
     const err = e as Error;
     logError(`POST /api/presets/${request.params.id}/run failed:`, err.stack ?? err.message);
-    return reply.code(500).send({ error: err.message });
+    reply.raw.write(JSON.stringify({ type: 'error', error: err.message }) + '\n');
+    reply.raw.end();
   }
 });
 

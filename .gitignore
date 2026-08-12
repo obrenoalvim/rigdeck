@@ -1,6 +1,9 @@
 node_modules/
 dist/
 presets.json
+sounds.json
+*.bak
+icon-cache/
 server.log
 *.log
 .env

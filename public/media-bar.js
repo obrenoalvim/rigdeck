@@ -1,8 +1,9 @@
 import { api } from './api.js';
 import { showToast } from './toast.js';
+import { openAudioMixer } from './audio-mixer.js';
 
 export function wireMediaBar() {
-  document.querySelectorAll('.media-btn').forEach((btn) => {
+  document.querySelectorAll('.media-btn[data-action]').forEach((btn) => {
     btn.onclick = async () => {
       btn.classList.add('firing');
       setTimeout(() => btn.classList.remove('firing'), 150);
@@ -13,4 +14,6 @@ export function wireMediaBar() {
       }
     };
   });
+
+  document.getElementById('open-audio-mixer').onclick = openAudioMixer;
 }

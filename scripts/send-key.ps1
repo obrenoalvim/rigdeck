@@ -14,6 +14,7 @@ public class Win32SendKey {
     [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
     [DllImport("user32.dll")] public static extern int GetSystemMetrics(int nIndex);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 }
 "@
 Add-Type -AssemblyName System.Windows.Forms
@@ -78,6 +79,28 @@ if ($normalized -eq 'MAXIMIZE' -or $normalized -eq 'RESTORE') {
         [Win32SendKey]::SetWindowLong($hwnd, $GWL_STYLE, ($style -bor $CHROME_BITS)) | Out-Null
         [Win32SendKey]::SetWindowPos($hwnd, [IntPtr]::Zero, 100, 100, 1280, 800, $SWP_FRAMECHANGED) | Out-Null
     }
+    Write-Output (@{ ok = $true } | ConvertTo-Json -Compress)
+    exit 0
+}
+
+# Teclas de midia nao existem no SendKeys (ele so cobre teclado normal) --
+# usam virtual-key code proprio e o Windows roteia pra sessao de midia ativa
+# no momento (Spotify, Brave tocando YouTube, etc), nao pra uma janela
+# especifica -- por isso nao precisa de -ProcessName aqui.
+$mediaMap = @{
+    'PLAY_PAUSE' = 0xB3; 'PLAYPAUSE' = 0xB3
+    'NEXT' = 0xB0; 'NEXT_TRACK' = 0xB0
+    'PREV' = 0xB1; 'PREVIOUS' = 0xB1; 'PREV_TRACK' = 0xB1
+    'MEDIA_STOP' = 0xB2
+    'VOLUME_UP' = 0xAF; 'VOL_UP' = 0xAF
+    'VOLUME_DOWN' = 0xAE; 'VOL_DOWN' = 0xAE
+    'MUTE' = 0xAD; 'VOLUME_MUTE' = 0xAD
+}
+if ($mediaMap.ContainsKey($normalized)) {
+    $KEYEVENTF_KEYUP = 0x0002
+    $vk = [byte]$mediaMap[$normalized]
+    [Win32SendKey]::keybd_event($vk, 0, 0, [UIntPtr]::Zero) | Out-Null
+    [Win32SendKey]::keybd_event($vk, 0, $KEYEVENTF_KEYUP, [UIntPtr]::Zero) | Out-Null
     Write-Output (@{ ok = $true } | ConvertTo-Json -Compress)
     exit 0
 }

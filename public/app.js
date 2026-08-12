@@ -2,9 +2,11 @@ import { api } from './api.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
 import { renderGrid } from './grid.js';
-import { renderPresetList, renderProgramsList, newForm } from './editor.js';
+import { renderPresetList, renderProgramsList, renderObsScenesList, newForm } from './editor.js';
 import { pingStatus, checkVersion, pollStats } from './status.js';
 import { wireMediaBar } from './media-bar.js';
+import { pollActiveWindow } from './autoswitch.js';
+import { pollNowPlaying } from './now-playing.js';
 
 async function loadAll() {
   state.monitors = await api('/monitors');
@@ -15,6 +17,12 @@ async function loadAll() {
   api('/programs').then((list) => {
     state.programs = list;
     renderProgramsList();
+  }).catch(() => {});
+  // Vazio se o OBS nao estiver aberto/websocket desligado -- editor cai pro
+  // campo de texto livre pro nome da cena nesse caso, sem quebrar a tela.
+  api('/obs/scenes').then((scenes) => {
+    state.obsScenes = scenes;
+    renderObsScenesList();
   }).catch(() => {});
 }
 
@@ -30,6 +38,10 @@ setInterval(pollStats, 5000);
 checkVersion();
 setInterval(checkVersion, 10000);
 wireMediaBar();
+pollActiveWindow();
+setInterval(pollActiveWindow, 4000);
+pollNowPlaying();
+setInterval(pollNowPlaying, 6000);
 
 // Fullscreen API exige gesto do usuario -- nao da pra entrar sozinho ao
 // carregar a pagina. iOS Safari nao suporta essa API (so "Adicionar a Tela

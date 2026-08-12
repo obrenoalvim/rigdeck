@@ -1,10 +1,12 @@
 import { api } from './api.js';
 import { state } from './state.js';
-import { showToast } from './toast.js';
+import { showToast, showActionToast } from './toast.js';
 
 const programsList = document.getElementById('programs-list');
+const obsScenesList = document.getElementById('obs-scenes-list');
 const editor = document.getElementById('editor');
 const presetList = document.getElementById('preset-list');
+const presetSearchInput = document.getElementById('preset-search');
 const stepsEl = document.getElementById('steps');
 const nameInput = document.getElementById('preset-name');
 const iconInput = document.getElementById('item-icon');
@@ -12,6 +14,14 @@ const formTitle = document.getElementById('form-title');
 const itemTypeSelect = document.getElementById('item-type');
 const itemParentSelect = document.getElementById('item-parent');
 const itemFsPathInput = document.getElementById('item-fs-path');
+const itemTriggerProcessInput = document.getElementById('item-trigger-process');
+const itemTriggerPicker = itemTriggerProcessInput.closest('.trigger-picker');
+const itemTriggerSuggestions = document.getElementById('item-trigger-suggestions');
+const itemTriggerChips = document.getElementById('item-trigger-chips');
+// Varios gatilhos por pasta (ex: jogo + launcher companion) -- cada item
+// {processName, label, target}. target fica null pra entrada manual
+// (usuario avancado que digitou o processo direto sem selecionar da lista).
+let triggerChips = [];
 
 function refresh() {
   document.dispatchEvent(new CustomEvent('deck:refresh'));
@@ -20,8 +30,16 @@ function refresh() {
 export function renderProgramsList() {
   programsList.innerHTML = '';
   state.programsByTarget = {};
+  state.programsByProcessName = {};
   for (const p of state.programs) {
     state.programsByTarget[p.target] = p;
+    // Reindexado por processName (nao so por target) pra reconhecer, ao
+    // reabrir uma pasta pra editar, qual jogo/programa corresponde ao
+    // "processo" ja salvo -- sem isso a pre-visualizacao (icone + nome)
+    // some depois de salvar e reabrir o formulario.
+    if (p.processName && !state.programsByProcessName[p.processName.toLowerCase()]) {
+      state.programsByProcessName[p.processName.toLowerCase()] = p;
+    }
     const opt = document.createElement('option');
     opt.value = p.target;
     if (p.source && p.source !== 'App') {
@@ -32,6 +50,15 @@ export function renderProgramsList() {
       opt.label = p.name;
     }
     programsList.appendChild(opt);
+  }
+}
+
+export function renderObsScenesList() {
+  obsScenesList.innerHTML = '';
+  for (const name of state.obsScenes) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    obsScenesList.appendChild(opt);
   }
 }
 
@@ -46,16 +73,26 @@ function orderedPresetTree() {
       .filter((p) => (p.parentId || null) === parentId)
       .forEach((p) => {
         rows.push({ preset: p, depth });
-        if (p.kind === 'folder') addChildren(p.id, depth + 1);
+        if (p.kind === 'folder' && !state.collapsedFolders.has(p.id)) addChildren(p.id, depth + 1);
       });
   };
   addChildren(null, 0);
   return rows;
 }
 
+// Com busca ativa, ignora hierarquia/collapse -- lista achatada (depth 0
+// sempre) so com o que bate o nome, senao um preset dentro de uma pasta
+// recolhida nunca apareceria no resultado da busca.
+function searchPresetTree(query) {
+  const q = query.toLowerCase();
+  return state.presets.filter((p) => p.name.toLowerCase().includes(q)).map((preset) => ({ preset, depth: 0 }));
+}
+
 export function renderPresetList() {
   presetList.innerHTML = '';
-  for (const { preset, depth } of orderedPresetTree()) {
+  const query = presetSearchInput.value.trim();
+  const rows = query ? searchPresetTree(query) : orderedPresetTree();
+  for (const { preset, depth } of rows) {
     const row = document.createElement('div');
     row.className = 'preset-row' + (preset.kind === 'folder' ? ' is-folder' : '');
     row.dataset.id = preset.id;
@@ -67,6 +104,22 @@ export function renderPresetList() {
     handle.textContent = '⠿';
     handle.title = 'Segurar e arrastar pra reordenar';
     handle.setAttribute('aria-label', 'Reordenar');
+
+    let collapseBtn = null;
+    if (preset.kind === 'folder') {
+      const collapsed = state.collapsedFolders.has(preset.id);
+      collapseBtn = document.createElement('button');
+      collapseBtn.className = 'icon-btn collapse-btn';
+      collapseBtn.textContent = collapsed ? '▸' : '▾';
+      collapseBtn.title = collapsed ? 'Expandir pasta' : 'Recolher pasta';
+      collapseBtn.setAttribute('aria-label', collapsed ? 'Expandir pasta' : 'Recolher pasta');
+      collapseBtn.onclick = () => {
+        if (collapsed) state.collapsedFolders.delete(preset.id);
+        else state.collapsedFolders.add(preset.id);
+        localStorage.setItem('rigdeck-collapsed-folders', JSON.stringify([...state.collapsedFolders]));
+        renderPresetList();
+      };
+    }
 
     const label = document.createElement('span');
     label.className = 'name';
@@ -108,18 +161,29 @@ export function renderPresetList() {
     delBtn.setAttribute('aria-label', 'Apagar');
     delBtn.textContent = '×';
     delBtn.onclick = async () => {
+      // Apaga na hora (sem confirm() bloqueante -- ruim em PWA mobile) e
+      // oferece desfazer por alguns segundos em vez de perguntar antes.
       const children = state.presets.filter((p) => p.parentId === preset.id);
-      const warning = children.length
-        ? `Apagar a pasta "${preset.name}"? Os ${children.length} itens dentro dela voltam pra raiz (não são apagados).`
-        : `Apagar "${preset.name}"?`;
-      if (!confirm(warning)) return;
+      const snapshot = { ...preset };
+      const childIds = children.map((c) => c.id);
       for (const child of children) {
         await api(`/presets/${child.id}`, { method: 'PUT', body: JSON.stringify({ parentId: null }) });
       }
       await api(`/presets/${preset.id}`, { method: 'DELETE' });
       refresh();
+      const label = childIds.length
+        ? `Apagado "${preset.name}" (${childIds.length} itens voltaram pra raiz).`
+        : `Apagado "${preset.name}".`;
+      showActionToast(label, 'DESFAZER', async () => {
+        await api('/presets', { method: 'POST', body: JSON.stringify(snapshot) });
+        for (const id of childIds) {
+          await api(`/presets/${id}`, { method: 'PUT', body: JSON.stringify({ parentId: preset.id }) });
+        }
+        refresh();
+        showToast(`"${preset.name}" restaurado.`);
+      });
     };
-    row.append(handle, upBtn, downBtn, pinBtn, label, editBtn, delBtn);
+    row.append(handle, upBtn, downBtn, pinBtn, ...(collapseBtn ? [collapseBtn] : []), label, editBtn, delBtn);
     presetList.appendChild(row);
   }
   wireDragReorder();
@@ -166,6 +230,12 @@ function wireDragReorder() {
       if (!drag) return;
       pointerY = e.clientY;
       row.style.transform = `translateY(${e.clientY - drag.startY}px)`;
+
+      presetList.querySelectorAll('.drop-target-folder').forEach((el) => el.classList.remove('drop-target-folder'));
+      const hoverEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('.preset-row');
+      if (hoverEl && hoverEl !== row && hoverEl.classList.contains('is-folder')) {
+        hoverEl.classList.add('drop-target-folder');
+      }
     };
 
     handle.onpointerup = async (e) => {
@@ -175,11 +245,29 @@ function wireDragReorder() {
       drag = null;
       clearInterval(scrollTimer);
       scrollTimer = null;
+      row.style.pointerEvents = '';
+      presetList.querySelectorAll('.drop-target-folder').forEach((el) => el.classList.remove('drop-target-folder'));
 
       const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('.preset-row');
-      row.style.pointerEvents = '';
-      if (!targetEl || targetEl === row || targetEl.dataset.parentId !== row.dataset.parentId) return;
+      if (!targetEl || targetEl === row) return;
 
+      const rowPreset = state.presets.find((p) => p.id === row.dataset.id);
+      const targetPreset = state.presets.find((p) => p.id === targetEl.dataset.id);
+
+      // Soltar em cima de uma pasta (que nao seja ela mesma nem descendente
+      // dela, senao criaria um ciclo) reparenta pra dentro dela -- diferente
+      // do reorder abaixo, que so troca posicao dentro do MESMO grupo.
+      const isCycle = rowPreset.kind === 'folder' && descendantIds(rowPreset.id).has(targetPreset?.id);
+      if (targetPreset?.kind === 'folder' && targetPreset.id !== rowPreset.id && !isCycle) {
+        if (targetPreset.id !== (rowPreset.parentId || null)) {
+          await api(`/presets/${rowPreset.id}`, { method: 'PUT', body: JSON.stringify({ parentId: targetPreset.id }) });
+          showToast(`Movido pra "${targetPreset.name}".`);
+          refresh();
+        }
+        return;
+      }
+
+      if (targetEl.dataset.parentId !== row.dataset.parentId) return;
       const siblings = [...presetList.querySelectorAll('.preset-row')].filter(
         (r) => r.dataset.parentId === row.dataset.parentId
       );
@@ -229,11 +317,132 @@ function renderParentOptions(excludeId) {
     });
 }
 
+// Mesma logica de icone real do grid (grid.js buildTile) reduzida pra um
+// unico target -- so cobre Steam (CDN publico, sem precisar de instalacao
+// local) e .exe local (extrai do binario). Resto cai no fallback (sem icone),
+// que e aceitavel aqui: e so uma pre-visualizacao de confirmacao no forms,
+// nao o grid principal.
+function iconSrcFor(target) {
+  if (!target) return null;
+  const steamId = target.match(/^steam:\/\/rungameid\/(\d+)/i);
+  if (steamId) return `https://cdn.cloudflare.steamstatic.com/steam/apps/${steamId[1]}/header.jpg`;
+  if (/\.exe$/i.test(target)) return `/api/icon?path=${encodeURIComponent(target)}`;
+  return null;
+}
+
+// Sigla a partir do nome (ex: "Counter-Strike 2" -> "CS2", "Grand Theft
+// Auto V" -> "GTAV") -- gente nao-tecnica digita a sigla que ja conhece,
+// nao o nome completo, e busca por substring pura no nome sozinha nao acha
+// "CS2" dentro de "Counter-Strike 2" (o nome nem contem essa sequencia).
+function acronymOf(name) {
+  return name
+    .split(/[\s\-:]+/)
+    .filter(Boolean)
+    .map((w) => (/^\d+$/.test(w) ? w : w[0]))
+    .join('')
+    .toUpperCase();
+}
+
+function matchesTriggerQuery(program, query) {
+  const q = query.toLowerCase();
+  return program.name.toLowerCase().includes(q) || acronymOf(program.name).toLowerCase().includes(q);
+}
+
+function addTriggerChip(chip) {
+  // Dedupe por processName -- selecionar o mesmo jogo duas vezes nao faz
+  // sentido e so inflaria a lista salva.
+  if (triggerChips.some((c) => c.processName.toLowerCase() === chip.processName.toLowerCase())) return;
+  triggerChips.push(chip);
+  renderTriggerChips();
+}
+
+function renderTriggerChips() {
+  itemTriggerChips.innerHTML = '';
+  triggerChips.forEach((chip, i) => {
+    const el = document.createElement('span');
+    el.className = 'trigger-chip';
+    const src = iconSrcFor(chip.target);
+    if (src) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = src;
+      img.onerror = () => img.remove();
+      el.appendChild(img);
+    }
+    const label = document.createElement('span');
+    label.textContent = chip.label;
+    el.appendChild(label);
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '×';
+    removeBtn.setAttribute('aria-label', `Remover ${chip.label}`);
+    removeBtn.onclick = () => {
+      triggerChips.splice(i, 1);
+      renderTriggerChips();
+    };
+    el.appendChild(removeBtn);
+    itemTriggerChips.appendChild(el);
+  });
+}
+
+function renderTriggerSuggestions() {
+  const query = itemTriggerProcessInput.value.trim();
+  itemTriggerSuggestions.innerHTML = '';
+  const matches = query ? state.programs.filter((p) => matchesTriggerQuery(p, query)).slice(0, 8) : [];
+  if (!matches.length) {
+    itemTriggerSuggestions.hidden = true;
+    return;
+  }
+  matches.forEach((p) => {
+    const row = document.createElement('div');
+    row.className = 'trigger-suggestion';
+    const src = iconSrcFor(p.target);
+    if (src) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = src;
+      img.onerror = () => img.remove();
+      row.appendChild(img);
+    }
+    const span = document.createElement('span');
+    span.textContent = p.name;
+    row.appendChild(span);
+    // mousedown (nao click) dispara antes do blur do input -- senao o blur
+    // esconde a lista de sugestoes primeiro e o clique nunca chega no row.
+    row.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      addTriggerChip({ processName: p.processName || p.name, label: p.name, target: p.target });
+      itemTriggerProcessInput.value = '';
+      itemTriggerSuggestions.hidden = true;
+    });
+    itemTriggerSuggestions.appendChild(row);
+  });
+  itemTriggerSuggestions.hidden = false;
+}
+
+itemTriggerProcessInput.addEventListener('input', renderTriggerSuggestions);
+itemTriggerProcessInput.addEventListener('focus', renderTriggerSuggestions);
+itemTriggerProcessInput.addEventListener('blur', () => {
+  itemTriggerSuggestions.hidden = true;
+});
+// Enter sem ter clicado numa sugestao = usuario avancado digitando o nome
+// do processo direto -- adiciona como chip manual (sem icone).
+itemTriggerProcessInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const value = itemTriggerProcessInput.value.trim();
+  if (!value) return;
+  addTriggerChip({ processName: value, label: value, target: null });
+  itemTriggerProcessInput.value = '';
+  itemTriggerSuggestions.hidden = true;
+});
+
 function applyItemType() {
   const kind = itemTypeSelect.value;
   stepsEl.style.display = kind === 'launcher' ? '' : 'none';
   document.getElementById('add-step').style.display = kind === 'launcher' ? '' : 'none';
   itemFsPathInput.style.display = kind === 'fs-folder' ? '' : 'none';
+  itemTriggerPicker.style.display = kind === 'folder' ? '' : 'none';
 }
 
 export function loadIntoForm(preset) {
@@ -246,6 +455,18 @@ export function loadIntoForm(preset) {
   itemTypeSelect.value = preset.kind === 'folder' || preset.kind === 'fs-folder' ? preset.kind : 'launcher';
   itemParentSelect.value = preset.parentId || '';
   itemFsPathInput.value = preset.path || '';
+  triggerChips = (preset.triggerProcess || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((processName) => {
+      const known = state.programsByProcessName[processName.toLowerCase()];
+      return known
+        ? { processName, label: known.name, target: known.target }
+        : { processName, label: processName, target: null };
+    });
+  itemTriggerProcessInput.value = '';
+  renderTriggerChips();
   applyItemType();
   renderSteps();
 }
@@ -260,6 +481,9 @@ export function newForm() {
   itemTypeSelect.value = 'launcher';
   itemParentSelect.value = state.currentFolderId || '';
   itemFsPathInput.value = '';
+  itemTriggerProcessInput.value = '';
+  triggerChips = [];
+  renderTriggerChips();
   applyItemType();
   renderSteps();
 }
@@ -268,7 +492,22 @@ const STEP_TYPES = [
   ['launch', 'Abrir'],
   ['cmd', 'Comando CMD'],
   ['key', 'Tecla'],
+  ['sound', 'Tocar Som'],
+  ['obs', 'OBS'],
 ];
+
+const OBS_ACTIONS = [
+  ['scene', 'Trocar cena'],
+  ['mic-mute', 'Mutar microfone'],
+  ['mic-unmute', 'Desmutar microfone'],
+  ['mic-toggle', 'Alternar mudo do microfone'],
+  ['start-record', '⏺ Iniciar gravação'],
+  ['stop-record', '⏹ Parar gravação'],
+  ['start-stream', '📡 Iniciar transmissão'],
+  ['stop-stream', '📡 Parar transmissão'],
+];
+
+const OBS_MIC_ACTIONS = new Set(['mic-mute', 'mic-unmute', 'mic-toggle']);
 
 const STEP_KEYS = [
   ['F11', 'F11 (tela cheia)'],
@@ -346,6 +585,48 @@ function renderSteps() {
       procInput.oninput = () => (state.steps[i].processName = procInput.value);
 
       row.append(typeSel, keySel, procInput, removeBtn);
+    } else if (step.type === 'sound') {
+      const pathInput = document.createElement('input');
+      pathInput.className = 'step-target';
+      pathInput.placeholder = 'Caminho do arquivo .wav (ex: C:\\Sons\\buzina.wav)';
+      pathInput.value = step.path || '';
+      pathInput.oninput = () => (state.steps[i].path = pathInput.value);
+      row.append(typeSel, pathInput, removeBtn);
+    } else if (step.type === 'obs') {
+      if (!step.action) step.action = 'scene';
+      const actionSel = document.createElement('select');
+      OBS_ACTIONS.forEach(([value, label]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        if (step.action === value) opt.selected = true;
+        actionSel.appendChild(opt);
+      });
+      actionSel.onchange = () => {
+        state.steps[i].action = actionSel.value;
+        renderSteps();
+      };
+      row.append(typeSel, actionSel);
+
+      if (step.action === 'scene') {
+        const sceneInput = document.createElement('input');
+        sceneInput.className = 'step-target';
+        sceneInput.placeholder = 'Nome da cena';
+        sceneInput.setAttribute('list', 'obs-scenes-list');
+        sceneInput.value = step.sceneName || '';
+        sceneInput.oninput = () => (state.steps[i].sceneName = sceneInput.value);
+        row.append(sceneInput);
+      } else if (OBS_MIC_ACTIONS.has(step.action)) {
+        const inputNameInput = document.createElement('input');
+        inputNameInput.className = 'process-input';
+        inputNameInput.placeholder = 'Mic/Aux';
+        inputNameInput.title = 'Nome da fonte de audio no OBS -- so preenche se nao for a padrao "Mic/Aux"';
+        inputNameInput.value = step.inputName || '';
+        inputNameInput.oninput = () => (state.steps[i].inputName = inputNameInput.value);
+        row.append(inputNameInput);
+      }
+
+      row.append(removeBtn);
     } else {
       const target = document.createElement('input');
       target.className = 'step-target';
@@ -404,6 +685,8 @@ editor.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') editor.classList.remove('open');
 });
+
+presetSearchInput.addEventListener('input', () => renderPresetList());
 
 document.getElementById('refresh-programs').onclick = async () => {
   try {
@@ -471,6 +754,9 @@ document.getElementById('save-preset').onclick = async () => {
     steps: kind === 'launcher' ? state.steps : [],
   };
   if (kind === 'fs-folder') data.path = itemFsPathInput.value.trim();
+  if (kind === 'folder') {
+    data.triggerProcess = triggerChips.map((c) => c.processName).join(',') || null;
+  }
   try {
     if (state.editingId) {
       await api(`/presets/${state.editingId}`, { method: 'PUT', body: JSON.stringify(data) });

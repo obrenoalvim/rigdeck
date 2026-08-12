@@ -54,6 +54,7 @@ function buildFolderTile(folder, i, childCount) {
   btn.onclick = () => {
     haptic(15);
     state.currentFolderId = folder.id;
+    state.autoSwitched = false; // navegacao manual sobrepoe a troca automatica de perfil
     renderGrid();
   };
   return btn;
@@ -83,6 +84,7 @@ function buildFsFolderTile(item, i) {
     haptic(15);
     state.currentFolderId = item.id;
     state.currentFsPath = item.path;
+    state.autoSwitched = false; // navegacao manual sobrepoe a troca automatica de perfil
     renderGrid();
   };
   return btn;
@@ -212,6 +214,7 @@ function buildBackTile() {
     haptic(15);
     const current = state.presets.find((p) => p.id === state.currentFolderId);
     state.currentFolderId = current ? current.parentId || null : null;
+    state.autoSwitched = false; // navegacao manual sobrepoe a troca automatica de perfil
     renderGrid();
   };
   return btn;
@@ -279,15 +282,59 @@ function buildTile(preset, i) {
       return img;
     };
 
-    if (iconSources.length === 0) {
-      iconWrap.textContent = monogram;
-      iconWrap.classList.add('fallback');
-    } else if (iconSources.length === 1) {
-      const img = makeIcon(iconSources[0], () => {
+    // Ultimo recurso antes do monograma: busca por nome na Steam Store (sem
+    // chave) e cacheia local -- cobre jogo instalado por outro launcher (ex:
+    // Epic) que tambem existe na Steam, ou exe sem icone embutido no binario.
+    // Exclusivo de verdade (nunca esteve na Steam) ainda cai no monograma.
+    // SO pra jogo: nunca dispara pra passo tipo "url" (site) nem pra preset
+    // sem nenhum passo de "abrir" (ex: botao so de tecla/som) -- senao
+    // busca "GitHub" ou "Tela Cheia (F11)" na loja Steam e arrisca pegar um
+    // icone de jogo qualquer sem relacao nenhuma com o preset.
+    const showOnlineFallback = () => {
+      const primaryTarget = (preset.steps || [])[0]?.target || '';
+      const img = document.createElement('img');
+      img.className = 'icon';
+      img.alt = '';
+      img.src = `/api/icon/lookup?name=${encodeURIComponent(preset.name)}&target=${encodeURIComponent(primaryTarget)}`;
+      img.onerror = () => {
+        img.remove();
         iconWrap.textContent = monogram;
         iconWrap.classList.add('fallback');
-      });
+      };
       iconWrap.appendChild(img);
+    };
+    const hasUnresolvedLaunchTarget = (preset.steps || []).some((s) => !!s.target);
+
+    if (iconSources.length === 0) {
+      if (hasUnresolvedLaunchTarget) {
+        showOnlineFallback();
+      } else {
+        iconWrap.textContent = monogram;
+        iconWrap.classList.add('fallback');
+      }
+    } else if (iconSources.length === 1) {
+      const source = iconSources[0];
+      if (source.type === 'url') {
+        // Site: favicon falhou -> monograma direto, sem busca de jogo.
+        const img = makeIcon(source, () => {
+          iconWrap.textContent = monogram;
+          iconWrap.classList.add('fallback');
+        });
+        iconWrap.appendChild(img);
+      } else {
+        // "let" (nao "const") de proposito: o callback de erro roda async
+        // (evento de rede), bem depois dessa atribuicao terminar -- por isso
+        // "img" ja esta setado quando o onerror dispara e da pra remover o
+        // <img> quebrado antes de tentar o fallback online. Sem isso os dois
+        // ficavam lado a lado no wrapper (flex), embolando o icone quebrado
+        // com o que carregou certo em vez de substituir.
+        let img;
+        img = makeIcon(source, () => {
+          img.remove();
+          showOnlineFallback();
+        });
+        iconWrap.appendChild(img);
+      }
     } else {
       iconWrap.classList.add('multi');
       iconSources.forEach((s) => {
@@ -425,13 +472,46 @@ export async function renderGrid() {
   paginate(tiles);
 }
 
+// Le a resposta como NDJSON (uma linha por step, mais uma linha final
+// "done") em vez de esperar o JSON completo -- em preset com varios steps
+// mostra o progresso passo a passo em vez de deixar o usuario sem feedback
+// nenhum ate o ultimo step terminar.
 async function runPreset(id, btn) {
   if (btn.classList.contains('loading')) return;
   btn.classList.add('firing', 'loading');
   setTimeout(() => btn.classList.remove('firing'), 200);
   try {
-    const { results } = await api(`/presets/${id}/run`, { method: 'POST' });
-    const failed = results.filter((r) => !r.ok);
+    const res = await fetch(`/api/presets/${id}/run`, { method: 'POST' });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResults = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nlIndex;
+      while ((nlIndex = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nlIndex);
+        buffer = buffer.slice(nlIndex + 1);
+        if (!line.trim()) continue;
+        const msg = JSON.parse(line);
+        if (msg.type === 'error') throw new Error(msg.error);
+        if (msg.type === 'done') {
+          finalResults = msg.results;
+        } else if (msg.type === 'step' && msg.total > 1) {
+          // Preset de 1 step so (o caso mais comum, ex: abrir 1 programa)
+          // fica igual a antes -- so mostra progresso quando ha o que
+          // progredir de verdade.
+          showToast(`Passo ${msg.index + 1}/${msg.total}: ${msg.ok ? 'OK' : 'FALHOU'} — ${msg.step}`, msg.ok);
+        }
+      }
+    }
+
+    const failed = (finalResults || []).filter((r) => !r.ok);
     showToast(
       failed.length ? `FALHOU: ${failed.map((f) => f.step + ' - ' + f.error).join('; ')}` : 'OK — disparado.',
       !failed.length
