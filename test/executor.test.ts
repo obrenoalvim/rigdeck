@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { processNameFor, pidKeyFor } from '../src/lib/executor.js';
+import { processNameFor, pidKeyFor, killByPath } from '../src/lib/executor.js';
 
 test('usa processName explicito quando presente', () => {
   assert.strictEqual(processNameFor({ type: 'launch', target: 'C:\\x\\Foo.exe', processName: 'bar' }), 'bar');
@@ -20,6 +20,14 @@ test('retorna null pra URL http sem processName explicito', () => {
 
 test('usa processName explicito mesmo com target sendo URL', () => {
   assert.strictEqual(processNameFor({ type: 'launch', target: 'http://localhost:8096', processName: 'msedge' }), 'msedge');
+});
+
+// So testa o caminho sem processo conhecido (nao-.exe) -- o caminho .exe
+// chamaria taskkill de verdade, mesmo motivo de killProcess/killByPid nao
+// terem teste direto neste arquivo.
+test('killByPath devolve ok:false pra alvo que nao e .exe (nao da pra adivinhar o processo)', async () => {
+  const result = await killByPath('C:\\Users\\alguem\\Documentos\\nota.txt');
+  assert.strictEqual(result.ok, false);
 });
 
 test('pidKeyFor usa o target do passo, nao a posicao -- reordenar passos nao troca a chave', () => {

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createStore } from './lib/presets-store.js';
 import { parseMonitorsOutput } from './lib/monitors.js';
 import { parseProgramsOutput } from './lib/programs.js';
-import { runPreset, killPreset, playSound, sendKey } from './lib/executor.js';
+import { runPreset, killPreset, killByPath, playSound, sendKey } from './lib/executor.js';
 import { launch } from './lib/launch.js';
 import { extractIcon } from './lib/icons.js';
 import { lookupIcon } from './lib/icon-fetch.js';
@@ -454,6 +454,13 @@ app.post<{ Body: { path?: string } }>('/api/fs/open', async (request, reply) => 
   log(`fs/open: ${target}`);
   launch(target);
   return { ok: true };
+});
+
+app.post<{ Body: { path?: string } }>('/api/fs/kill', async (request, reply) => {
+  const target = request.body.path;
+  if (!target) return reply.code(400).send({ error: 'path obrigatorio' });
+  log(`fs/kill: ${target}`);
+  return killByPath(target);
 });
 
 // Streama um resultado por linha (NDJSON) a medida que cada step termina,

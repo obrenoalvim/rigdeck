@@ -219,6 +219,19 @@ function killByPid(pid: number): Promise<StepResult> {
   });
 }
 
+// Kill de um arquivo aberto via navegacao de pasta do disco (kind=fs-folder) --
+// esses nao sao presets com passos rastreados, so um caminho solto. So da pra
+// adivinhar o processo se o alvo for um .exe (mesma regra do processNameFor);
+// arquivo aberto por associacao de app (.txt, .pdf...) nao tem como saber
+// qual processo o Windows escolheu pra abrir.
+export function killByPath(targetPath: string): Promise<StepResult> {
+  if (!/\.exe$/i.test(targetPath)) {
+    return Promise.resolve({ ok: false, error: 'sem processo conhecido pra encerrar' });
+  }
+  const processName = path.basename(targetPath).replace(/\.[^.]+$/, '');
+  return killProcess(processName);
+}
+
 export async function killPreset(preset: Preset): Promise<StepResult[]> {
   const results: StepResult[] = [];
   for (const step of preset.steps ?? []) {

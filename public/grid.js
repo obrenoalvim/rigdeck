@@ -183,7 +183,33 @@ function buildFsFileTile(entry, i) {
   fill.className = 'press-fill';
 
   btn.append(idx, iconWrap, label, fill);
+
+  let pressTimer = null;
+  let longPressed = false;
+  const startPress = () => {
+    longPressed = false;
+    btn.classList.add('pressing');
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      btn.classList.remove('pressing');
+      haptic([30, 40, 30]);
+      killFsFileAction(entry.path, btn);
+    }, 650);
+  };
+  const cancelPress = () => {
+    clearTimeout(pressTimer);
+    btn.classList.remove('pressing');
+  };
+  btn.addEventListener('mousedown', startPress);
+  btn.addEventListener('touchstart', startPress, { passive: true });
+  btn.addEventListener('mouseup', cancelPress);
+  btn.addEventListener('mouseleave', cancelPress);
+  btn.addEventListener('touchend', cancelPress);
+  btn.addEventListener('touchmove', cancelPress);
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+
   btn.onclick = async () => {
+    if (longPressed) return;
     if (btn.classList.contains('loading')) return;
     haptic(20);
     btn.classList.add('firing', 'loading');
@@ -198,6 +224,17 @@ function buildFsFileTile(entry, i) {
     }
   };
   return btn;
+}
+
+async function killFsFileAction(filePath, btn) {
+  btn.classList.add('killed');
+  setTimeout(() => btn.classList.remove('killed'), 300);
+  try {
+    const result = await api(`/fs/kill`, { method: 'POST', body: JSON.stringify({ path: filePath }) });
+    showToast(result.ok ? 'Encerrado.' : result.error || 'Nada rodando pra encerrar', result.ok);
+  } catch (e) {
+    showToast(`Erro encerrando: ${e.message}`, false);
+  }
 }
 
 function buildBackTile() {

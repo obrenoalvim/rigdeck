@@ -235,3 +235,21 @@ test('POST /api/fs/open 404 se arquivo nao existe', async () => {
   });
   assert.strictEqual(notFound.status, 404);
 });
+
+test('POST /api/fs/kill 400 sem path', async () => {
+  const res = await api('/api/fs/kill', { method: 'POST', body: JSON.stringify({}) });
+  assert.strictEqual(res.status, 400);
+});
+
+// So testa o caso de arquivo nao-.exe (ok:false sem tentar matar nada) -- o
+// caso de .exe chamaria taskkill de verdade, mesma razao do POST /fs/open
+// acima nao testar o caminho de sucesso.
+test('POST /api/fs/kill devolve ok:false pra arquivo sem processo conhecido', async () => {
+  const res = await api('/api/fs/kill', {
+    method: 'POST',
+    body: JSON.stringify({ path: path.join(fsFolderDir, 'nota.txt') }),
+  });
+  assert.strictEqual(res.status, 200);
+  const body = await res.json();
+  assert.strictEqual(body.ok, false);
+});
