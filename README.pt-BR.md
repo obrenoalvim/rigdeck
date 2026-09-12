@@ -66,13 +66,16 @@ cada uma isolada.
 
 - **Presets em pastas.** Organiza atalhos em pastas aninhadas, igual ao
   Stream Deck físico da Elgato.
-- **Três tipos de passo por preset.**
+- **Cinco tipos de passo por preset.**
   - `launch`: abre um `.exe`, atalho, protocolo (`steam://`, `epicgames://`)
     ou URL, com posicionamento de janela por monitor e tela cheia opcional.
   - `cmd`: roda um comando de shell qualquer e retorna a saída.
   - `key`: envia uma tecla (F11, ESC, Alt+Enter...) pra janela em foco ou
     pra um processo específico. Inclui `MAXIMIZE`/`RESTORE` como ações de
     janela de verdade, que não dependem do app escutar a tecla.
+  - `sound`: toca um arquivo de áudio local sem travar o preset.
+  - `obs`: controla o OBS via WebSocket (trocar cena, mutar/desmutar mic,
+    iniciar/parar gravação ou stream).
 - **Presets com múltiplos passos.** Um botão abre Spotify, Brave e VS Code de
   uma vez, por exemplo.
 - **Posicionamento por monitor.** Cada passo escolhe o monitor e decide se
@@ -85,6 +88,12 @@ cada uma isolada.
 - **Descoberta automática de programas.** Varre Menu Iniciar, Desktop, e os
   manifestos do Steam e do Epic Games Launcher, e classifica sozinho o que é
   jogo e o que é programa comum.
+- **Mixer de áudio.** Ajusta volume master, mic e por app, EQ de 2 bandas e
+  efeito de voz, além de um soundboard com atalhos de teclado/Discord.
+- **Controle do OBS.** Troca cena, muta o mic, e inicia/para gravação ou
+  stream, direto de um preset.
+- **Navegação de pastas.** Aponta um preset pra uma pasta e navega os
+  arquivos como uma grade de botões, sem precisar cadastrar cada um.
 - **Stats ao vivo.** CPU, RAM e disco livre na barra de status.
 - **PWA instalável.** Funciona como app na tela inicial do celular, com
   layout compacto em landscape: até 4 botões por página, numa bandeja

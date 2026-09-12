@@ -66,7 +66,7 @@ can be tested in isolation.
 
 - **Presets in folders.** Organizes shortcuts in nested folders, just like
   Elgato's physical Stream Deck.
-- **Three step types per preset.**
+- **Five step types per preset.**
   - `launch`: opens an `.exe`, shortcut, protocol (`steam://`,
     `epicgames://`) or URL, with per-monitor window positioning and optional
     fullscreen.
@@ -74,6 +74,9 @@ can be tested in isolation.
   - `key`: sends a keystroke (F11, ESC, Alt+Enter...) to the focused window
     or to a specific process. Includes `MAXIMIZE`/`RESTORE` as real window
     actions, which don't depend on the app listening for the key.
+  - `sound`: plays a local audio file without blocking the preset.
+  - `obs`: drives OBS via its WebSocket API (switch scene, mute/unmute mic,
+    start/stop recording or streaming).
 - **Multi-step presets.** One button opens Spotify, Brave and VS Code at
   once, for example.
 - **Per-monitor positioning.** Each step picks its monitor and decides
@@ -86,6 +89,12 @@ can be tested in isolation.
 - **Automatic program discovery.** Scans the Start Menu, Desktop, and the
   Steam and Epic Games Launcher manifests, and classifies what's a game and
   what's a regular program on its own.
+- **Audio mixer.** Adjust master, mic and per-app volume, a 2-band EQ, and a
+  voice effect, plus a soundboard with keyboard/Discord-keybind triggers.
+- **OBS control.** Switch scenes, mute the mic, and start/stop
+  recording or streaming, straight from a preset.
+- **File-folder browsing.** Point a preset at a folder and browse it as a
+  grid of tappable files, without pre-registering each one.
 - **Live stats.** CPU, RAM and free disk in the status bar.
 - **Installable PWA.** Works as a home-screen app on the phone, with a
   compact landscape layout: up to 4 buttons per page, in a sliding tray,
