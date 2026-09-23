@@ -6,6 +6,22 @@ function loadCollapsedFolders() {
   }
 }
 
+export const STAT_KEYS = ['cpu', 'ram', 'disk', 'claude5h', 'claudeWeek'];
+
+function loadVisibleStats() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('rigdeck-visible-stats'));
+    if (Array.isArray(saved)) return new Set(saved.filter((k) => STAT_KEYS.includes(k)));
+  } catch {
+    // ignora e cai no padrao
+  }
+  return new Set(STAT_KEYS);
+}
+
+export function saveVisibleStats(set) {
+  localStorage.setItem('rigdeck-visible-stats', JSON.stringify([...set]));
+}
+
 export const state = {
   knownVersion: null,
   monitors: [],
@@ -20,4 +36,5 @@ export const state = {
   currentFsPath: null,
   collapsedFolders: loadCollapsedFolders(),
   autoSwitched: false,
+  visibleStats: loadVisibleStats(),
 };

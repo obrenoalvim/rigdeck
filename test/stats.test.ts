@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { cpuPercentFromSamples, getMemoryStats, getDiskStats } from '../src/lib/stats.js';
+import { cpuPercentFromSamples, getMemoryStats, getDiskStats, getClaudeSessionStats } from '../src/lib/stats.js';
 
 test('cpuPercentFromSamples calcula % de uso a partir do delta idle/total', () => {
   const start = { idle: 1000, total: 10000 };
@@ -33,4 +33,15 @@ test('getDiskStats retorna numeros plausiveis do disco real', async () => {
   assert.ok(stats.diskTotalGB > 0);
   assert.ok(stats.diskFreeGB >= 0 && stats.diskFreeGB <= stats.diskTotalGB);
   assert.ok(stats.diskPercent >= 0 && stats.diskPercent <= 100);
+});
+
+test('getClaudeSessionStats retorna null ou um percentual plausivel', async () => {
+  const stats = await getClaudeSessionStats();
+  if (stats === null) return;
+  assert.ok(stats.claudePercent >= 0 && stats.claudePercent <= 100);
+  assert.strictEqual(typeof stats.claudeStale, 'boolean');
+  assert.ok(
+    stats.claudeWeeklyPercent === null ||
+      (stats.claudeWeeklyPercent >= 0 && stats.claudeWeeklyPercent <= 100),
+  );
 });

@@ -1,5 +1,6 @@
 import os from 'node:os';
 import fs from 'node:fs';
+import path from 'node:path';
 
 interface CpuSample {
   idle: number;
@@ -59,7 +60,45 @@ export async function getDiskStats() {
   };
 }
 
+// Le o mesmo snapshot que o plugin claude-hud escreve (config
+// display.externalUsageWritePath) -- e o % real do limite de 5h da conta,
+// nao uma estimativa por token. Mesma fonte usada em claude-usage-tray.
+const CLAUDE_FRESHNESS_MS = 15 * 60 * 1000;
+
+export async function getClaudeSessionStats() {
+  const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+  const snapshotPath = path.join(claudeDir, 'cache', 'usage-snapshot.json');
+
+  let raw: string;
+  try {
+    raw = await fs.promises.readFile(snapshotPath, 'utf8');
+  } catch {
+    return null;
+  }
+
+  try {
+    const snapshot = JSON.parse(raw);
+    const pct = snapshot?.five_hour?.used_percentage;
+    if (typeof pct !== 'number') return null;
+
+    const ageMs = Date.now() - new Date(snapshot.updated_at).getTime();
+    const stale = !(ageMs >= 0 && ageMs <= CLAUDE_FRESHNESS_MS);
+    const weeklyPct = snapshot?.seven_day?.used_percentage;
+    return {
+      claudePercent: Math.round(pct),
+      claudeStale: stale,
+      claudeWeeklyPercent: typeof weeklyPct === 'number' ? Math.round(weeklyPct) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function getStats() {
-  const [cpuPercent, diskStats] = await Promise.all([getCpuPercent(), getDiskStats()]);
-  return { cpuPercent, ...getMemoryStats(), ...diskStats };
+  const [cpuPercent, diskStats, claude] = await Promise.all([
+    getCpuPercent(),
+    getDiskStats(),
+    getClaudeSessionStats(),
+  ]);
+  return { cpuPercent, ...getMemoryStats(), ...diskStats, claude };
 }

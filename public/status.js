@@ -1,9 +1,19 @@
 import { api } from './api.js';
-import { state } from './state.js';
+import { state, STAT_KEYS, saveVisibleStats } from './state.js';
 
 const statusEl = document.getElementById('status');
 const statusText = document.getElementById('status-text');
 const statsEl = document.getElementById('stats');
+
+const STAT_LABELS = {
+  cpu: 'CPU',
+  ram: 'RAM',
+  disk: 'Disco',
+  claude5h: 'Claude 5h',
+  claudeWeek: 'Claude semanal',
+};
+
+let lastStats = null;
 
 export async function pingStatus() {
   try {
@@ -46,14 +56,79 @@ function statMini(label, pct, valueText, extraClass = '') {
   return el;
 }
 
+function buildStatTiles(s) {
+  const stale = s.claude?.claudeStale ? ' (antigo)' : '';
+  return {
+    cpu: statMini('CPU', s.cpuPercent, `${s.cpuPercent}%`),
+    ram: statMini('RAM', s.ramPercent, `${s.ramUsedGB}/${s.ramTotalGB}GB`),
+    disk: statMini('DISCO', s.diskPercent, `${s.diskFreeGB}GB livre`, 'disk'),
+    claude5h: s.claude
+      ? statMini('CLAUDE 5H', s.claude.claudePercent, `${s.claude.claudePercent}%${stale}`, 'claude')
+      : null,
+    claudeWeek:
+      s.claude && s.claude.claudeWeeklyPercent !== null
+        ? statMini('CLAUDE SEM', s.claude.claudeWeeklyPercent, `${s.claude.claudeWeeklyPercent}%${stale}`, 'claude')
+        : null,
+  };
+}
+
+function renderStats(s) {
+  const tiles = buildStatTiles(s);
+  statsEl.querySelectorAll('.stat-mini').forEach((el) => el.remove());
+  for (const key of STAT_KEYS) {
+    if (state.visibleStats.has(key) && tiles[key]) {
+      statsEl.insertBefore(tiles[key], statsEl.querySelector('.stats-config'));
+    }
+  }
+}
+
 export async function pollStats() {
   try {
     const s = await api('/stats');
-    statsEl.innerHTML = '';
-    statsEl.appendChild(statMini('CPU', s.cpuPercent, `${s.cpuPercent}%`));
-    statsEl.appendChild(statMini('RAM', s.ramPercent, `${s.ramUsedGB}/${s.ramTotalGB}GB`));
-    statsEl.appendChild(statMini('DISCO', s.diskPercent, `${s.diskFreeGB}GB livre`, 'disk'));
+    lastStats = s;
+    renderStats(s);
   } catch {
-    statsEl.innerHTML = '';
+    statsEl.querySelectorAll('.stat-mini').forEach((el) => el.remove());
   }
 }
+
+function initStatsConfig() {
+  const btn = document.createElement('button');
+  btn.className = 'stats-config';
+  btn.type = 'button';
+  btn.title = 'Escolher o que mostrar';
+  btn.setAttribute('aria-label', 'Escolher o que mostrar');
+  btn.textContent = '⚙';
+
+  const panel = document.createElement('div');
+  panel.className = 'stats-config-panel';
+  panel.hidden = true;
+  for (const key of STAT_KEYS) {
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = state.visibleStats.has(key);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) state.visibleStats.add(key);
+      else state.visibleStats.delete(key);
+      saveVisibleStats(state.visibleStats);
+      if (lastStats) renderStats(lastStats);
+    });
+    label.appendChild(checkbox);
+    label.append(` ${STAT_LABELS[key]}`);
+    panel.appendChild(label);
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.hidden = !panel.hidden;
+  });
+  document.addEventListener('click', (e) => {
+    if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) panel.hidden = true;
+  });
+
+  statsEl.appendChild(btn);
+  statsEl.appendChild(panel);
+}
+
+initStatsConfig();
