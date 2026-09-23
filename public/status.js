@@ -5,14 +5,6 @@ const statusEl = document.getElementById('status');
 const statusText = document.getElementById('status-text');
 const statsEl = document.getElementById('stats');
 
-const STAT_LABELS = {
-  cpu: 'CPU',
-  ram: 'RAM',
-  disk: 'Disco',
-  claude5h: 'Claude 5h',
-  claudeWeek: 'Claude semanal',
-};
-
 let lastStats = null;
 
 export async function pingStatus() {
@@ -74,11 +66,9 @@ function buildStatTiles(s) {
 
 function renderStats(s) {
   const tiles = buildStatTiles(s);
-  statsEl.querySelectorAll('.stat-mini').forEach((el) => el.remove());
+  statsEl.innerHTML = '';
   for (const key of STAT_KEYS) {
-    if (state.visibleStats.has(key) && tiles[key]) {
-      statsEl.insertBefore(tiles[key], statsEl.querySelector('.stats-config'));
-    }
+    if (state.visibleStats.has(key) && tiles[key]) statsEl.appendChild(tiles[key]);
   }
 }
 
@@ -88,47 +78,12 @@ export async function pollStats() {
     lastStats = s;
     renderStats(s);
   } catch {
-    statsEl.querySelectorAll('.stat-mini').forEach((el) => el.remove());
+    statsEl.innerHTML = '';
   }
 }
 
-function initStatsConfig() {
-  const btn = document.createElement('button');
-  btn.className = 'stats-config';
-  btn.type = 'button';
-  btn.title = 'Escolher o que mostrar';
-  btn.setAttribute('aria-label', 'Escolher o que mostrar');
-  btn.textContent = '⚙';
-
-  const panel = document.createElement('div');
-  panel.className = 'stats-config-panel';
-  panel.hidden = true;
-  for (const key of STAT_KEYS) {
-    const label = document.createElement('label');
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = state.visibleStats.has(key);
-    checkbox.addEventListener('change', () => {
-      if (checkbox.checked) state.visibleStats.add(key);
-      else state.visibleStats.delete(key);
-      saveVisibleStats(state.visibleStats);
-      if (lastStats) renderStats(lastStats);
-    });
-    label.appendChild(checkbox);
-    label.append(` ${STAT_LABELS[key]}`);
-    panel.appendChild(label);
-  }
-
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    panel.hidden = !panel.hidden;
-  });
-  document.addEventListener('click', (e) => {
-    if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) panel.hidden = true;
-  });
-
-  statsEl.appendChild(btn);
-  statsEl.appendChild(panel);
+// checkboxes do que mostrar vivem no painel de CONFIG (mesma engrenagem
+// dos presets) -- ver wireStatsVisibilityToggles em editor.js
+export function refreshStatsDisplay() {
+  if (lastStats) renderStats(lastStats);
 }
-
-initStatsConfig();

@@ -1,6 +1,7 @@
 import { api } from './api.js';
-import { state } from './state.js';
+import { state, STAT_KEYS, saveVisibleStats } from './state.js';
 import { showToast, showActionToast } from './toast.js';
+import { refreshStatsDisplay } from './status.js';
 
 const programsList = document.getElementById('programs-list');
 const obsScenesList = document.getElementById('obs-scenes-list');
@@ -677,6 +678,17 @@ function renderSteps() {
 document.getElementById('toggle-edit').onclick = () => {
   editor.classList.toggle('open');
 };
+
+for (const key of STAT_KEYS) {
+  const checkbox = document.getElementById(`stat-toggle-${key}`);
+  checkbox.checked = state.visibleStats.has(key);
+  checkbox.onchange = () => {
+    if (checkbox.checked) state.visibleStats.add(key);
+    else state.visibleStats.delete(key);
+    saveVisibleStats(state.visibleStats);
+    refreshStatsDisplay();
+  };
+}
 
 editor.addEventListener('click', (e) => {
   if (e.target === editor) editor.classList.remove('open');
