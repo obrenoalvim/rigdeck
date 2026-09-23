@@ -248,6 +248,7 @@ header h1 span {
 
 .stat-mini.warn .stat-mini-fill { background: var(--accent-strong); }
 .stat-mini.crit .stat-mini-fill { background: var(--fail); }
+.stat-mini.stale .stat-mini-fill { background: var(--text-dim); }
 
 .stats-visibility {
   display: flex;

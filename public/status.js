@@ -37,9 +37,10 @@ function statLevel(pct) {
   return 'ok';
 }
 
-function statMini(label, pct, valueText, extraClass = '') {
+function statMini(label, pct, valueText, extraClass = '', stale = false) {
   const el = document.createElement('div');
-  el.className = `stat-mini ${statLevel(pct)} ${extraClass}`.trim();
+  const level = stale ? 'stale' : statLevel(pct);
+  el.className = `stat-mini ${level} ${extraClass}`.trim();
   el.innerHTML = `
     <span class="stat-mini-label">${label}</span>
     <span class="stat-mini-bar"><span class="stat-mini-fill" style="width:${Math.min(pct, 100)}%"></span></span>
@@ -49,17 +50,17 @@ function statMini(label, pct, valueText, extraClass = '') {
 }
 
 function buildStatTiles(s) {
-  const stale = s.claude?.claudeStale ? ' (antigo)' : '';
+  const stale = !!s.claude?.claudeStale;
   return {
     cpu: statMini('CPU', s.cpuPercent, `${s.cpuPercent}%`),
     ram: statMini('RAM', s.ramPercent, `${s.ramUsedGB}/${s.ramTotalGB}GB`),
     disk: statMini('DISCO', s.diskPercent, `${s.diskFreeGB}GB livre`, 'disk'),
     claude5h: s.claude
-      ? statMini('CLAUDE 5H', s.claude.claudePercent, `${s.claude.claudePercent}%${stale}`, 'claude')
+      ? statMini('CLAUDE 5H', s.claude.claudePercent, `${s.claude.claudePercent}%`, 'claude', stale)
       : null,
     claudeWeek:
       s.claude && s.claude.claudeWeeklyPercent !== null
-        ? statMini('CLAUDE SEM', s.claude.claudeWeeklyPercent, `${s.claude.claudeWeeklyPercent}%${stale}`, 'claude')
+        ? statMini('CLAUDE SEM', s.claude.claudeWeeklyPercent, `${s.claude.claudeWeeklyPercent}%`, 'claude', stale)
         : null,
   };
 }
