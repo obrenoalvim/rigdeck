@@ -208,6 +208,7 @@ header h1 span {
   display: flex;
   gap: 20px;
   align-items: center;
+  justify-content: center;
   padding: 8px 24px;
   border-bottom: 1px solid var(--edge);
   background: rgba(0, 0, 0, 0.15);
