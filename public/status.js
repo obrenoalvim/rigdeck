@@ -88,3 +88,9 @@ export async function pollStats() {
 export function refreshStatsDisplay() {
   if (lastStats) renderStats(lastStats);
 }
+
+// Usuario sem claude-hud nunca vai ter s.claude -- esconde os dois
+// checkboxes de Claude no CONFIG em vez de deixar opcao morta na tela.
+export function hasClaudeData() {
+  return !!lastStats?.claude;
+}

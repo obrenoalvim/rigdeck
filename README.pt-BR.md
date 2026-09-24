@@ -94,7 +94,10 @@ cada uma isolada.
   stream, direto de um preset.
 - **Navegação de pastas.** Aponta um preset pra uma pasta e navega os
   arquivos como uma grade de botões, sem precisar cadastrar cada um.
-- **Stats ao vivo.** CPU, RAM e disco livre na barra de status.
+- **Stats ao vivo.** CPU, RAM e disco livre na barra de status, mais o %
+  de uso da sessão (5h e semanal) do Claude Code — é por conta, então fica
+  atualizado mesmo quando o uso é em outra máquina. Escolhe quais tiles
+  aparecem no painel CONFIG.
 - **PWA instalável.** Funciona como app na tela inicial do celular, com
   layout compacto em landscape: até 4 botões por página, numa bandeja
   deslizável, igual ícones de celular.
@@ -197,7 +200,7 @@ rigdeck/
 │       ├── executor.ts       # decide como cada passo roda
 │       ├── presets-store.ts  # persistência (JSON local)
 │       ├── launch.ts         # abre programas/URLs
-│       ├── stats.ts          # CPU/RAM/disco
+│       ├── stats.ts          # CPU/RAM/disco/uso do Claude
 │       ├── icons.ts          # extrai ícone de .exe
 │       └── monitors.ts, programs.ts, json-array.ts
 ├── scripts/            # PowerShell: a camada que fala com o Windows

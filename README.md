@@ -95,7 +95,10 @@ can be tested in isolation.
   recording or streaming, straight from a preset.
 - **File-folder browsing.** Point a preset at a folder and browse it as a
   grid of tappable files, without pre-registering each one.
-- **Live stats.** CPU, RAM and free disk in the status bar.
+- **Live stats.** CPU, RAM and free disk in the status bar, plus Claude Code
+  5h/weekly usage percentage (account-wide, so it stays current even when
+  usage happens on another machine). Pick which tiles show from the CONFIG
+  panel.
 - **Installable PWA.** Works as a home-screen app on the phone, with a
   compact landscape layout: up to 4 buttons per page, in a sliding tray,
   like phone app icons.
@@ -199,7 +202,7 @@ rigdeck/
 │       ├── executor.ts       # decides how each step runs
 │       ├── presets-store.ts  # persistence (local JSON)
 │       ├── launch.ts         # opens programs/URLs
-│       ├── stats.ts          # CPU/RAM/disk
+│       ├── stats.ts          # CPU/RAM/disk/Claude usage
 │       ├── icons.ts          # extracts icons from .exe files
 │       └── monitors.ts, programs.ts, json-array.ts
 ├── scripts/            # PowerShell: the layer that talks to Windows

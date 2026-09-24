@@ -215,6 +215,10 @@ header h1 span {
   flex-wrap: wrap;
 }
 
+.stats:empty {
+  display: none;
+}
+
 .stat-mini {
   display: flex;
   align-items: center;

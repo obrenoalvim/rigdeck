@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { cpuPercentFromSamples, getMemoryStats, getDiskStats, getClaudeSessionStats } from '../src/lib/stats.js';
+import {
+  cpuPercentFromSamples,
+  getMemoryStats,
+  getDiskStats,
+  getClaudeSessionStats,
+  isSnapshotStale,
+} from '../src/lib/stats.js';
 
 test('cpuPercentFromSamples calcula % de uso a partir do delta idle/total', () => {
   const start = { idle: 1000, total: 10000 };
@@ -33,6 +39,26 @@ test('getDiskStats retorna numeros plausiveis do disco real', async () => {
   assert.ok(stats.diskTotalGB > 0);
   assert.ok(stats.diskFreeGB >= 0 && stats.diskFreeGB <= stats.diskTotalGB);
   assert.ok(stats.diskPercent >= 0 && stats.diskPercent <= 100);
+});
+
+test('isSnapshotStale falso para dado recem escrito', () => {
+  const now = 1_000_000;
+  assert.strictEqual(isSnapshotStale(now - 60_000, now), false);
+});
+
+test('isSnapshotStale verdadeiro logo apos os 15min', () => {
+  const now = 1_000_000;
+  assert.strictEqual(isSnapshotStale(now - (15 * 60 * 1000 + 1), now), true);
+});
+
+test('isSnapshotStale verdadeiro no limite exato dos 15min (inclusive)', () => {
+  const now = 1_000_000;
+  assert.strictEqual(isSnapshotStale(now - 15 * 60 * 1000, now), false);
+});
+
+test('isSnapshotStale verdadeiro para timestamp no futuro (relogio dessincronizado)', () => {
+  const now = 1_000_000;
+  assert.strictEqual(isSnapshotStale(now + 60_000, now), true);
 });
 
 test('getClaudeSessionStats retorna null ou um percentual plausivel', async () => {

@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { state, STAT_KEYS, saveVisibleStats } from './state.js';
 import { showToast, showActionToast } from './toast.js';
-import { refreshStatsDisplay } from './status.js';
+import { refreshStatsDisplay, hasClaudeData } from './status.js';
 
 const programsList = document.getElementById('programs-list');
 const obsScenesList = document.getElementById('obs-scenes-list');
@@ -677,10 +677,22 @@ function renderSteps() {
 
 document.getElementById('toggle-edit').onclick = () => {
   editor.classList.toggle('open');
+  if (editor.classList.contains('open')) updateClaudeToggleVisibility();
 };
+
+// Chave que so faz sentido pra quem tem o plugin claude-hud escrevendo o
+// snapshot -- some do CONFIG pra quem nao tem, em vez de opcao morta.
+function updateClaudeToggleVisibility() {
+  const available = hasClaudeData();
+  for (const key of ['claude5h', 'claudeWeek']) {
+    const label = document.getElementById(`stat-toggle-${key}`)?.closest('label');
+    if (label) label.hidden = !available;
+  }
+}
 
 for (const key of STAT_KEYS) {
   const checkbox = document.getElementById(`stat-toggle-${key}`);
+  if (!checkbox) continue;
   checkbox.checked = state.visibleStats.has(key);
   checkbox.onchange = () => {
     if (checkbox.checked) state.visibleStats.add(key);

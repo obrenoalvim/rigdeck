@@ -1,6 +1,6 @@
 # TODO IMPROVEMENTS
 
-> Last updated: 2026-09-12
+> Last updated: 2026-09-23
 
 ## Pending Changes
 
@@ -64,3 +64,48 @@ Also found both READMEs (`README.md`, `README.pt-BR.md`) undocumented for 2 of t
 `npm audit` now shows 2 vulnerabilities (0 at the last pass) — queued above rather than fixed, since fixing means bumping `fastify` and this pass's scope excludes dependency upgrades.
 
 Baseline after this cycle: `npm run typecheck` clean, `npm test` 76/76 passing (73 + 3 new).
+
+### 2026-09-23 pass (3 cycles, Claude usage-tiles feature review)
+
+Target this pass was the Claude 5h/weekly usage tiles feature shipped earlier
+in the same session (`src/lib/stats.ts`, `public/status.js`, `public/editor.js`,
+`public/state.js`) — new code from this session, not yet reviewed by this
+skill. Researched locally (read the claude-hud plugin source on disk for the
+`usage-snapshot.json` schema) instead of web search, since the exact source
+was available and more precise than a search result.
+
+**Cycle 1 — correctness/testability:**
+- `src/lib/stats.ts`: extracted `isSnapshotStale(updatedAtMs, nowMs)` as an
+  exported pure function out of `getClaudeSessionStats` (same pattern as the
+  existing `cpuPercentFromSamples`) so the 15-minute staleness boundary is
+  unit-testable without depending on the real clock or a snapshot file on disk.
+- `test/stats.test.ts`: added 4 tests for `isSnapshotStale` — fresh, just past
+  the boundary, exactly at the boundary (inclusive), and future timestamp
+  (clock skew) treated as stale.
+- `public/editor.js`: null-guard on `document.getElementById('stat-toggle-...')`
+  in the CONFIG-panel wiring loop, so a future `STAT_KEYS` entry without a
+  matching checkbox in `index.html` fails silently instead of throwing.
+- `public/style.css`: `.stats:empty { display: none }` — if the user unchecks
+  every stat tile, the bar no longer leaves an empty padded strip.
+
+**Cycle 2 — docs (UX/PO: shipped-but-undocumented feature, same pattern as the
+2026-09-12 pass):**
+- `README.md`, `README.pt-BR.md`: "Live stats" bullet now mentions the Claude
+  usage tiles and the CONFIG-panel picker; the `stats.ts` line in the repo-tree
+  comment updated to say what it now covers.
+- `CHANGELOG.md`: added an `[Unreleased] / Added` entry for both the usage
+  tiles and the visibility picker (file was empty under `[Unreleased]`).
+
+**Cycle 3 — UX (dead-option cleanup):**
+- `public/status.js`: added `hasClaudeData()` (true once `/api/stats` has
+  returned a non-null `claude` field at least once).
+- `public/editor.js`: CONFIG panel now hides the "Claude 5h" / "Claude
+  semanal" checkboxes when the user has no claude-hud snapshot at all,
+  re-checked every time the panel opens — a user without claude-hud installed
+  was previously shown two checkboxes that could never do anything.
+
+Nothing sensitive surfaced on this target — no new entries added to the
+Pending Changes list above (all queued items are unchanged from 2026-09-12).
+
+Baseline after this pass: `npm run typecheck` clean, `npm test` 81/81 passing
+(77 + 4 new). All changes above are uncommitted per this skill's rule.
