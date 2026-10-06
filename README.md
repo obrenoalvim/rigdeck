@@ -1,13 +1,40 @@
+<div align="center">
+
+<img src="public/icon.svg" alt="RigDeck logo" width="120" height="120">
+
 # // RigDeck
 
-🇧🇷 [Ler em Português](README.pt-BR.md)
+**A Stream Deck with no hardware.**<br>
+Your phone opens a web page and controls your Windows PC over the local network: launch apps, games and sites, place windows on specific monitors, and close what you opened with a tap. No native app on the phone.
 
-**A Stream Deck with no hardware.** Your phone opens a web page and controls
-the Windows PC over the local network: launches apps, games and sites,
-positions windows on specific monitors, enters and exits fullscreen, closes
-whatever it opened with a tap. No native app installed on the phone.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/obrenoalvim/rigdeck?style=flat&logo=github&color=ff9a3d)](https://github.com/obrenoalvim/rigdeck/stargazers)
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](#prerequisites)
+[![Fastify](https://img.shields.io/badge/Fastify-000000?logo=fastify&logoColor=white)](#stack)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](#stack)
+[![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)](#features)
+
+**English** · [Português](README.pt-BR.md)
+
+[Features](#features) · [Quick start](#quick-start) · [How it works](#how-it-works) · [Stack](#stack) · [Usage](#usage) · [FAQ](#faq) · [Landing page](https://rigdeck.vercel.app)
+
+</div>
+
+---
 
 ![RigDeck running in landscape mode](.github/screenshot.jpg)
+
+## Quick start
+
+```bash
+git clone https://github.com/obrenoalvim/rigdeck.git
+cd rigdeck
+npm install
+npm run build
+npm start
+```
+
+Open `http://localhost:4321` on your PC, or `http://<your-pc-ip>:4321` from your phone on the same network. Details are under [Getting started](#getting-started).
 
 ## About
 
@@ -135,7 +162,7 @@ doesn't need.
 ### Installation
 
 ```bash
-git clone https://github.com/<your-username>/rigdeck.git
+git clone https://github.com/obrenoalvim/rigdeck.git
 cd rigdeck
 npm install
 npm run build
@@ -221,7 +248,43 @@ rigdeck/
 - **In-memory tracking.** Restarting the server clears the fine-grained
   PID/HWND tracking. Closing falls back to killing by process name.
 
+---
+
+## FAQ
+
+**Do I need to install an app on my phone?**
+No. The PC serves a web page, and your phone opens it in the browser. You can add it to the home screen as an installable PWA.
+
+**Does it work on macOS or Linux?**
+No. All window control depends on the Win32 API through PowerShell, so it is Windows only.
+
+**Is it safe to expose to the internet?**
+No. There is no authentication. Keep it on your local network, or put a VPN or a reverse proxy with auth in front of port 4321.
+
+**Does auto-start need admin rights?**
+No. It starts on login through a shortcut in the Windows Startup folder, with no elevated privileges.
+
+## More Windows tools by the same author
+
+- [**claude-usage-tray**](https://github.com/obrenoalvim/claude-usage-tray): a tray icon with your Claude Code 5-hour usage.
+- [**win-mute**](https://github.com/obrenoalvim/win-mute): a PowerShell toolkit that turns off Windows AI, telemetry and bloatware.
+- [**claude-terminal-hub**](https://github.com/obrenoalvim/claude-terminal-hub): resume Claude Code sessions in up to four terminal panes.
+
 ## Links
 
 - Landing page: https://rigdeck.vercel.app
-- License: MIT — see [LICENSE](LICENSE)
+- [Contributing](CONTRIBUTING.md) and [changelog](CHANGELOG.md)
+
+## License
+
+MIT, see [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+
+If RigDeck replaced a Stream Deck on your desk, a ⭐ helps other people find it.
+
+<sub>**Topics:** stream-deck · remote-control · windows-automation · pwa · fastify · typescript · powershell · gaming · home-automation · obs</sub>
+
+</div>
