@@ -750,7 +750,7 @@ function folderName(dir) {
 
 // Cria varios presets de uma vez na pasta aberta no deck (sem passar pelo
 // formulario) -- fluxo "marcou N programas, ja estao no deck".
-async function createMany(drafts) {
+export async function createMany(drafts) {
   let ok = 0;
   for (const draft of drafts) {
     try {
@@ -766,7 +766,7 @@ async function createMany(drafts) {
   }
 }
 
-document.getElementById('add-programs').onclick = async () => {
+export async function addProgramsFlow() {
   const chosen = await pickPrograms({ multi: true });
   if (!chosen?.length) return;
   await createMany(
@@ -776,13 +776,24 @@ document.getElementById('add-programs').onclick = async () => {
       steps: [{ type: 'launch', target: p.target, processName: p.processName || '', monitor: 0, fullscreen: false }],
     }))
   );
-};
+}
 
-document.getElementById('add-fs-folder').onclick = async () => {
+export async function addFsFolderFlow() {
   const dir = await browseDisk({ mode: 'folder' });
   if (!dir) return;
   await createMany([{ name: folderName(dir), kind: 'fs-folder', path: dir, steps: [] }]);
-};
+}
+
+document.getElementById('add-programs').onclick = addProgramsFlow;
+document.getElementById('add-fs-folder').onclick = addFsFolderFlow;
+
+// Abre o painel CONFIG ja com o preset carregado (usado pelo menu de contexto).
+export function openEditorFor(preset) {
+  editor.classList.add('open');
+  updateClaudeToggleVisibility();
+  if (preset) loadIntoForm(preset);
+  else newForm();
+}
 
 document.getElementById('add-step').onclick = () => {
   state.steps.push({ type: 'launch', target: '', processName: '', monitor: 0, fullscreen: false });

@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Right-click menu on the deck: on a tile (run/open, edit, pin, duplicate,
+  remove) or on the background (add programs, add disk folder, new folder,
+  new shortcut), using the same flows as the CONFIG panel.
 - Program picker (inspired by WinDock): searchable catalog of Start Menu
   apps, Steam and Epic games with icons, category tabs and multi-select.
   "ADICIONAR PROGRAMAS" creates one shortcut per checked program in the

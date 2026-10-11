@@ -42,6 +42,7 @@ function openModal(title, subtitle) {
   const overlay = el('div', 'picker-overlay');
   const box = el('div', 'picker-box');
   box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
   box.setAttribute('aria-label', title);
   const head = el('div', 'picker-head');
   head.append(el('div', 'picker-title', title), el('div', 'picker-sub', subtitle));
@@ -51,11 +52,13 @@ function openModal(title, subtitle) {
   overlay.append(box);
   document.body.append(overlay);
 
+  const opener = document.activeElement;
   let done;
   const result = new Promise((resolve) => (done = resolve));
   const finish = (value) => {
     window.removeEventListener('keydown', onKey, true);
     overlay.remove();
+    opener?.focus?.();
     done(value);
   };
   const onKey = (e) => {
@@ -67,6 +70,17 @@ function openModal(title, subtitle) {
   window.addEventListener('keydown', onKey, true);
   overlay.addEventListener('mousedown', (e) => {
     if (e.target === overlay) finish(null);
+  });
+  // Setas navegam entre as linhas (busca <-> lista), sem precisar de mouse.
+  box.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const rows = [...box.querySelectorAll('.picker-row')];
+    if (!rows.length) return;
+    e.preventDefault();
+    const i = rows.indexOf(document.activeElement);
+    const next = e.key === 'ArrowDown' ? Math.min(i + 1, rows.length - 1) : i - 1;
+    if (next < 0) box.querySelector('input')?.focus();
+    else rows[next].focus();
   });
   return { head, body, footer, finish, result };
 }
@@ -199,7 +213,7 @@ export async function pickPrograms({ multi }) {
 const LAST_DIR_KEY = 'rigdeck-last-browse-dir';
 const FILE_EXT = /\.(exe|lnk|bat|cmd|url)$/i;
 
-function parentOf(p) {
+export function parentOf(p) {
   const trimmed = p.replace(/[\\/]+$/, '');
   const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
   if (idx < 0) return null;

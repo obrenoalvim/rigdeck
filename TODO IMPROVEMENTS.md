@@ -1,8 +1,28 @@
 # TODO IMPROVEMENTS
 
-> Last updated: 2026-09-23
+> Last updated: 2026-10-10
 
 ## Pending Changes
+
+### Picker: mark programs already on the deck / skip duplicates
+- **Category:** Feature
+- **Flagged by:** UX, PO
+- **Source:** WinDock's picker behavior; code read of `public/picker.js`, `createMany` in `public/editor.js`
+- **What:** Programs that already have a launcher preset show a "NO DECK" badge in the picker, and "ADICIONAR PROGRAMAS" skips duplicates instead of creating a second tile.
+- **Where:** `public/picker.js` (row render), `public/editor.js` (`createMany`)
+- **Why:** Re-opening the picker next week, nothing tells you what you already added.
+- **Risk:** Needs a rule for "same program" (first step target match) — product call.
+- **Effort:** Low
+
+### Picker: bulk-add into a new folder
+- **Category:** Feature
+- **Flagged by:** PM, UX
+- **Source:** code read
+- **What:** After multi-select, offer "criar pasta com estes" so 8 games become one folder tile instead of 8 loose tiles.
+- **Where:** `public/editor.js` (`add-programs` handler)
+- **Why:** Adding many programs clutters the root grid.
+- **Risk:** Changes the add flow; choose default (loose vs folder).
+- **Effort:** Low
 
 ### npm audit: fastify / fast-uri advisories (transitive)
 - **Category:** Dependency

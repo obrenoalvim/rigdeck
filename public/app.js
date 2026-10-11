@@ -7,6 +7,7 @@ import { pingStatus, checkVersion, pollStats } from './status.js';
 import { wireMediaBar } from './media-bar.js';
 import { pollActiveWindow } from './autoswitch.js';
 import { pollNowPlaying } from './now-playing.js';
+import './context-menu.js';
 
 async function loadAll() {
   state.monitors = await api('/monitors');

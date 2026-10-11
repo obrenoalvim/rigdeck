@@ -6,9 +6,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'get-icon.ps1');
 const cache = new Map<string, Promise<Buffer | null>>();
 
+// Cada extracao e um powershell.exe novo (~200ms+). O seletor de programas
+// pode pedir dezenas de icones de uma vez ao rolar a lista -- sem limite,
+// isso vira dezenas de processos simultaneos e trava a maquina.
+const MAX_PARALLEL = 4;
+let running = 0;
+const waiting: Array<() => void> = [];
+
+async function slot<T>(work: () => Promise<T>): Promise<T> {
+  if (running >= MAX_PARALLEL) await new Promise<void>((resolve) => waiting.push(resolve));
+  running++;
+  try {
+    return await work();
+  } finally {
+    running--;
+    waiting.shift()?.();
+  }
+}
+
 export function extractIcon(exePath: string): Promise<Buffer | null> {
   if (cache.has(exePath)) return cache.get(exePath)!;
-  const promise = new Promise<Buffer | null>((resolve) => {
+  const promise = slot(() => new Promise<Buffer | null>((resolve) => {
     execFile(
       'powershell.exe',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SCRIPT, '-Path', exePath],
@@ -23,7 +41,7 @@ export function extractIcon(exePath: string): Promise<Buffer | null> {
         resolve(Buffer.from(stdout.trim(), 'base64'));
       }
     );
-  });
+  }));
   cache.set(exePath, promise);
   return promise;
 }

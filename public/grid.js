@@ -34,6 +34,7 @@ function haptic(pattern) {
 function buildFolderTile(folder, i, childCount) {
   const btn = document.createElement('button');
   btn.className = 'tile folder';
+  btn.dataset.presetId = folder.id;
   btn.style.setProperty('--i', i);
   btn.style.setProperty('--tile-accent', colorFor(folder.id || folder.name));
 
@@ -63,6 +64,7 @@ function buildFolderTile(folder, i, childCount) {
 function buildFsFolderTile(item, i) {
   const btn = document.createElement('button');
   btn.className = 'tile folder';
+  btn.dataset.presetId = item.id;
   btn.style.setProperty('--i', i);
   btn.style.setProperty('--tile-accent', colorFor(item.id || item.name));
 
@@ -260,6 +262,7 @@ function buildBackTile() {
 function buildTile(preset, i) {
   const btn = document.createElement('button');
   btn.className = 'tile';
+  btn.dataset.presetId = preset.id;
   btn.style.setProperty('--i', i);
   btn.style.setProperty('--tile-accent', colorFor(preset.id || preset.name));
 
