@@ -76,6 +76,8 @@
       <div class="editor-body">
         <div class="editor-col editor-col-list">
           <div class="editor-toolbar">
+            <button class="btn-solid small" id="add-programs">＋ ADICIONAR PROGRAMAS</button>
+            <button class="btn-ghost small" id="add-fs-folder">＋ PASTA DO DISCO</button>
             <button class="btn-ghost small" id="refresh-programs">🔄 ATUALIZAR PROGRAMAS</button>
             <a class="btn-ghost small" id="export-btn" href="/api/export" download>⬇ EXPORTAR</a>
             <button class="btn-ghost small" id="import-btn">⬆ IMPORTAR</button>
@@ -97,7 +99,10 @@
           </div>
           <input id="preset-name" placeholder="NOME" />
           <input id="item-icon" placeholder="Ícone (emoji opcional — Win+. abre o seletor)" maxlength="8" />
-          <input id="item-fs-path" placeholder="Caminho no disco (ex: C:\Users\...\Pasta)" />
+          <div class="fs-path-row">
+            <input id="item-fs-path" placeholder="Caminho no disco (ex: C:\Users\...\Pasta)" />
+            <button type="button" class="btn-ghost small" id="pick-fs-path">📂 ESCOLHER</button>
+          </div>
           <div class="trigger-picker">
             <input id="item-trigger-process" placeholder="Abrir esta pasta sozinho quando eu jogar/abrir... (busque pelo nome, ex: CS2)" autocomplete="off" />
             <div id="item-trigger-suggestions" class="trigger-suggestions" hidden></div>

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { scanDir } from '../src/lib/fs-scan.js';
+import { scanDir, listRoots } from '../src/lib/fs-scan.js';
 
 test('scanDir lista pastas antes de arquivos, cada grupo em ordem alfabetica, ignora dotfiles', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rigdeck-fs-scan-'));
@@ -25,4 +25,10 @@ test('scanDir lista pastas antes de arquivos, cada grupo em ordem alfabetica, ig
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('listRoots devolve so pastas existentes e inclui o drive do sistema', () => {
+  const roots = listRoots();
+  assert.ok(roots.every((r) => r.isDir && fs.existsSync(r.path)));
+  assert.ok(roots.some((r) => r.path === os.homedir()));
 });

@@ -13,7 +13,7 @@ import { launch } from './lib/launch.js';
 import { extractIcon } from './lib/icons.js';
 import { lookupIcon } from './lib/icon-fetch.js';
 import { getStats } from './lib/stats.js';
-import { scanDir } from './lib/fs-scan.js';
+import { scanDir, listRoots } from './lib/fs-scan.js';
 import { log, logError } from './lib/log.js';
 import { translateKeybind } from './lib/keybind.js';
 import {
@@ -437,6 +437,8 @@ app.post<{ Params: { id: string } }>('/api/sounds/:id/play', async (request, rep
 // ponytail: sem confinamento de path a raiz cadastrada -- app ja nao tem
 // autenticacao e ja permite passo cmd com comando arbitrario, entao restringir
 // so essas duas rotas nao mudaria o modelo de confianca (rede local).
+app.get('/api/fs/roots', async () => ({ entries: listRoots() }));
+
 app.get<{ Querystring: { path?: string } }>('/api/fs/list', async (request, reply) => {
   const target = request.query.path;
   if (!target) return reply.code(400).send({ error: 'path obrigatorio' });

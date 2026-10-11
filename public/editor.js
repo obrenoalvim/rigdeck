@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { state, STAT_KEYS, saveVisibleStats } from './state.js';
 import { showToast, showActionToast } from './toast.js';
 import { refreshStatsDisplay, hasClaudeData } from './status.js';
+import { pickPrograms, browseDisk, iconSrcFor, matchesQuery } from './picker.js';
 
 const programsList = document.getElementById('programs-list');
 const obsScenesList = document.getElementById('obs-scenes-list');
@@ -15,6 +16,7 @@ const formTitle = document.getElementById('form-title');
 const itemTypeSelect = document.getElementById('item-type');
 const itemParentSelect = document.getElementById('item-parent');
 const itemFsPathInput = document.getElementById('item-fs-path');
+const fsPathRow = itemFsPathInput.closest('.fs-path-row');
 const itemTriggerProcessInput = document.getElementById('item-trigger-process');
 const itemTriggerPicker = itemTriggerProcessInput.closest('.trigger-picker');
 const itemTriggerSuggestions = document.getElementById('item-trigger-suggestions');
@@ -318,37 +320,6 @@ function renderParentOptions(excludeId) {
     });
 }
 
-// Mesma logica de icone real do grid (grid.js buildTile) reduzida pra um
-// unico target -- so cobre Steam (CDN publico, sem precisar de instalacao
-// local) e .exe local (extrai do binario). Resto cai no fallback (sem icone),
-// que e aceitavel aqui: e so uma pre-visualizacao de confirmacao no forms,
-// nao o grid principal.
-function iconSrcFor(target) {
-  if (!target) return null;
-  const steamId = target.match(/^steam:\/\/rungameid\/(\d+)/i);
-  if (steamId) return `https://cdn.cloudflare.steamstatic.com/steam/apps/${steamId[1]}/header.jpg`;
-  if (/\.exe$/i.test(target)) return `/api/icon?path=${encodeURIComponent(target)}`;
-  return null;
-}
-
-// Sigla a partir do nome (ex: "Counter-Strike 2" -> "CS2", "Grand Theft
-// Auto V" -> "GTAV") -- gente nao-tecnica digita a sigla que ja conhece,
-// nao o nome completo, e busca por substring pura no nome sozinha nao acha
-// "CS2" dentro de "Counter-Strike 2" (o nome nem contem essa sequencia).
-function acronymOf(name) {
-  return name
-    .split(/[\s\-:]+/)
-    .filter(Boolean)
-    .map((w) => (/^\d+$/.test(w) ? w : w[0]))
-    .join('')
-    .toUpperCase();
-}
-
-function matchesTriggerQuery(program, query) {
-  const q = query.toLowerCase();
-  return program.name.toLowerCase().includes(q) || acronymOf(program.name).toLowerCase().includes(q);
-}
-
 function addTriggerChip(chip) {
   // Dedupe por processName -- selecionar o mesmo jogo duas vezes nao faz
   // sentido e so inflaria a lista salva.
@@ -389,7 +360,7 @@ function renderTriggerChips() {
 function renderTriggerSuggestions() {
   const query = itemTriggerProcessInput.value.trim();
   itemTriggerSuggestions.innerHTML = '';
-  const matches = query ? state.programs.filter((p) => matchesTriggerQuery(p, query)).slice(0, 8) : [];
+  const matches = query ? state.programs.filter((p) => matchesQuery(p.name, query)).slice(0, 8) : [];
   if (!matches.length) {
     itemTriggerSuggestions.hidden = true;
     return;
@@ -442,7 +413,7 @@ function applyItemType() {
   const kind = itemTypeSelect.value;
   stepsEl.style.display = kind === 'launcher' ? '' : 'none';
   document.getElementById('add-step').style.display = kind === 'launcher' ? '' : 'none';
-  itemFsPathInput.style.display = kind === 'fs-folder' ? '' : 'none';
+  fsPathRow.style.display = kind === 'fs-folder' ? '' : 'none';
   itemTriggerPicker.style.display = kind === 'folder' ? '' : 'none';
 }
 
@@ -668,7 +639,22 @@ function renderSteps() {
       fsCheck.onchange = () => (state.steps[i].fullscreen = fsCheck.checked);
       fullscreen.append(fsCheck, 'tela cheia');
 
-      row.append(typeSel, target, processInput, monitorSel, fullscreen, removeBtn);
+      const pickBtn = document.createElement('button');
+      pickBtn.type = 'button';
+      pickBtn.className = 'btn-ghost small';
+      pickBtn.textContent = '🔍';
+      pickBtn.title = 'Escolher da lista de programas e jogos';
+      pickBtn.setAttribute('aria-label', 'Escolher programa');
+      pickBtn.onclick = async () => {
+        const [p] = (await pickPrograms({ multi: false })) || [];
+        if (!p) return;
+        state.steps[i].target = p.target;
+        state.steps[i].processName = p.processName || '';
+        if (!nameInput.value.trim()) nameInput.value = p.name;
+        renderSteps();
+      };
+
+      row.append(typeSel, target, pickBtn, processInput, monitorSel, fullscreen, removeBtn);
     }
 
     stepsEl.appendChild(row);
@@ -748,6 +734,54 @@ importFile.onchange = async () => {
   } catch (e) {
     showToast(`Erro importando: ${e.message}`, false);
   }
+};
+
+document.getElementById('pick-fs-path').onclick = async () => {
+  const dir = await browseDisk({ mode: 'folder', start: itemFsPathInput.value.trim() || null });
+  if (!dir) return;
+  itemFsPathInput.value = dir;
+  if (!nameInput.value.trim()) nameInput.value = folderName(dir);
+};
+
+function folderName(dir) {
+  const parts = dir.split(/[\/]/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : dir;
+}
+
+// Cria varios presets de uma vez na pasta aberta no deck (sem passar pelo
+// formulario) -- fluxo "marcou N programas, ja estao no deck".
+async function createMany(drafts) {
+  let ok = 0;
+  for (const draft of drafts) {
+    try {
+      await api('/presets', { method: 'POST', body: JSON.stringify({ ...draft, parentId: state.currentFolderId || null }) });
+      ok++;
+    } catch (e) {
+      showToast(`Erro adicionando ${draft.name}: ${e.message}`, false);
+    }
+  }
+  if (ok) {
+    refresh();
+    showToast(ok === 1 ? `"${drafts[0].name}" adicionado.` : `${ok} atalhos adicionados.`);
+  }
+}
+
+document.getElementById('add-programs').onclick = async () => {
+  const chosen = await pickPrograms({ multi: true });
+  if (!chosen?.length) return;
+  await createMany(
+    chosen.map((p) => ({
+      name: p.name,
+      kind: 'launcher',
+      steps: [{ type: 'launch', target: p.target, processName: p.processName || '', monitor: 0, fullscreen: false }],
+    }))
+  );
+};
+
+document.getElementById('add-fs-folder').onclick = async () => {
+  const dir = await browseDisk({ mode: 'folder' });
+  if (!dir) return;
+  await createMany([{ name: folderName(dir), kind: 'fs-folder', path: dir, steps: [] }]);
 };
 
 document.getElementById('add-step').onclick = () => {
