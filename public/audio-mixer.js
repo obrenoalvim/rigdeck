@@ -499,3 +499,16 @@ modal.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && modal.classList.contains('open')) closeAudioMixer();
 });
+
+// Mixer aberto com a pagina escondida segura o PowerShell do VU meter e o
+// poll de 2s -- solta ao esconder, retoma ao voltar se ainda estiver aberto.
+document.addEventListener('visibilitychange', () => {
+  if (!modal.classList.contains('open')) return;
+  clearInterval(pollTimer);
+  pollTimer = null;
+  stopMeterStream();
+  if (document.visibilityState !== 'visible') return;
+  refreshAudioState();
+  startMeterStream();
+  pollTimer = setInterval(refreshAudioState, 2000);
+});

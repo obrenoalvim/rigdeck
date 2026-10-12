@@ -32,17 +32,25 @@ document.addEventListener('deck:refresh', () => {
 });
 
 loadAll().catch((e) => showToast(`Erro carregando: ${e.message}`, false));
-pingStatus();
-setInterval(pingStatus, 15000);
-pollStats();
-setInterval(pollStats, 5000);
-checkVersion();
-setInterval(checkVersion, 10000);
 wireMediaBar();
-pollActiveWindow();
-setInterval(pollActiveWindow, 4000);
-pollNowPlaying();
-setInterval(pollNowPlaying, 6000);
+
+// Polls so rodam com a pagina visivel -- aba escondida, minimizada ou tela
+// apagada nao bate no servidor (cada poll pode subir um PowerShell). Sem
+// ninguem olhando o servidor fica parado; ao voltar, atualiza na hora.
+const polls = [
+  [pingStatus, 15000],
+  [pollStats, 5000],
+  [checkVersion, 10000],
+  [pollActiveWindow, 4000],
+  [pollNowPlaying, 6000],
+];
+let pollTimers = [];
+function setPolling(on) {
+  pollTimers.forEach(clearInterval);
+  pollTimers = on ? polls.map(([fn, ms]) => (fn(), setInterval(fn, ms))) : [];
+}
+setPolling(document.visibilityState === 'visible');
+document.addEventListener('visibilitychange', () => setPolling(document.visibilityState === 'visible'));
 
 // Fullscreen API exige gesto do usuario -- nao da pra entrar sozinho ao
 // carregar a pagina. iOS Safari nao suporta essa API (so "Adicionar a Tela
