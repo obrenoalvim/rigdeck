@@ -10,10 +10,6 @@ export function createStore<T extends { id: string } = Preset>(filePath: string)
     try {
       return JSON.parse(raw);
     } catch (e) {
-      // Falha alto em vez de cair silenciosamente pra [] -- sumir com todos
-      // os presets da tela sem apagar o arquivo e pior que um erro visivel.
-      // O .bak (escrito antes de cada save bem-sucedido) tem o ultimo estado
-      // valido conhecido, pra restaurar a mao.
       const bak = backupPath(filePath);
       const hint = fs.existsSync(bak) ? ` Backup do ultimo estado valido em "${bak}".` : '';
       throw new Error(`presets.json corrompido (${(e as Error).message}).${hint}`);
@@ -21,10 +17,6 @@ export function createStore<T extends { id: string } = Preset>(filePath: string)
   }
 
   function save(presets: T[]): void {
-    // Copia o arquivo ATUAL (ainda valido, senao load() teria falhado antes
-    // de chegar aqui) pro .bak antes de sobrescrever -- se a proxima escrita
-    // for interrompida no meio (crash, disco cheio), o .bak fica com o
-    // ultimo estado bom conhecido.
     if (fs.existsSync(filePath)) fs.copyFileSync(filePath, backupPath(filePath));
     fs.writeFileSync(filePath, JSON.stringify(presets, null, 2));
   }

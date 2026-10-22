@@ -64,8 +64,6 @@ test('POST /api/presets cria, GET /api/presets lista', async () => {
 });
 
 test('POST /api/presets em paralelo nunca gera ids repetidos', async () => {
-  // Date.now() so tem resolucao de milissegundo -- duas criacoes bem rapidas
-  // (ex: clique duplo, script) colidiam antes de trocar pra crypto.randomUUID.
   const results = await Promise.all(
     Array.from({ length: 10 }, (_, i) =>
       api('/api/presets', { method: 'POST', body: JSON.stringify({ name: `Paralelo${i}`, steps: [] }) }).then((r) => r.json())
@@ -74,7 +72,6 @@ test('POST /api/presets em paralelo nunca gera ids repetidos', async () => {
   const ids = results.map((r) => r.id);
   assert.strictEqual(new Set(ids).size, ids.length);
 
-  // limpa
   await Promise.all(ids.map((id) => api(`/api/presets/${id}`, { method: 'DELETE' })));
 });
 
@@ -139,7 +136,6 @@ test('POST /api/presets/:id/move troca de posicao só com os irmãos (mesma pare
     ]),
   });
 
-  // sobe "Dois" -- troca com "Um"
   let list = await (
     await api('/api/presets/x2/move', {
       method: 'POST',
@@ -151,7 +147,6 @@ test('POST /api/presets/:id/move troca de posicao só com os irmãos (mesma pare
     ['x2', 'x1', 'x3', 'y1']
   );
 
-  // ja esta no topo do seu grupo -- sobe de novo, fica igual (no-op)
   list = await (
     await api('/api/presets/x2/move', {
       method: 'POST',
@@ -163,7 +158,6 @@ test('POST /api/presets/:id/move troca de posicao só com os irmãos (mesma pare
     ['x2', 'x1', 'x3', 'y1']
   );
 
-  // desce "x1" -- so tem um irmao (y1, parentId diferente) entao nao mexe com x3
   list = await (
     await api('/api/presets/y1/move', {
       method: 'POST',
@@ -224,10 +218,6 @@ test('GET /api/fs/list lista o conteudo da pasta; 404 se nao existe', async () =
   assert.strictEqual(notFound.status, 404);
 });
 
-// So testa o caso de erro -- o caso de sucesso chama launch() de verdade
-// (abre o app padrao do arquivo), o que abriria uma janela real durante
-// o test run. Cobertura de "abre o processo certo" ja existe em launch
-// (usado tambem pelos steps normais de preset).
 test('POST /api/fs/open 404 se arquivo nao existe', async () => {
   const notFound = await api('/api/fs/open', {
     method: 'POST',
@@ -241,9 +231,6 @@ test('POST /api/fs/kill 400 sem path', async () => {
   assert.strictEqual(res.status, 400);
 });
 
-// So testa o caso de arquivo nao-.exe (ok:false sem tentar matar nada) -- o
-// caso de .exe chamaria taskkill de verdade, mesma razao do POST /fs/open
-// acima nao testar o caminho de sucesso.
 test('POST /api/fs/kill devolve ok:false pra arquivo sem processo conhecido', async () => {
   const res = await api('/api/fs/kill', {
     method: 'POST',

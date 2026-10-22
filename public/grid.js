@@ -16,17 +16,10 @@ function colorFor(key) {
 
 const PAGE_SIZE = 4;
 
-// Fonte web (Chakra Petch/JetBrains Mono) troca a fallback por ela mesma
-// depois do primeiro paint -- o reflow disso pode fazer o scroll-snap
-// "corrigir" o scrollLeft pra um valor pequeno e errado (~15px), vazando
-// uns pixels da pagina 2 na borda da pagina 1. So corrige se o desvio for
-// pequeno (deriva, nao navegacao real -- pagina 2 fica bem mais longe).
 document.fonts?.ready?.then(() => {
   if (grid.scrollLeft > 0 && grid.scrollLeft < 100) grid.scrollLeft = 0;
 });
 
-// navigator.vibrate so nao existe no iOS Safari (WebKit nunca implementou) --
-// checa suporte, nunca deixa a ausencia quebrar o toque.
 function haptic(pattern) {
   if (navigator.vibrate) navigator.vibrate(pattern);
 }
@@ -92,10 +85,6 @@ function buildFsFolderTile(item, i) {
   return btn;
 }
 
-// Sobe um nivel no path do disco (\\ ou /, tanto faz o SO). Usado so pra
-// navegar "voltar" dentro de uma pasta do disco -- nao ha registro em
-// presets.json pras subpastas, entao nao da pra pegar parentId como nos
-// itens normais.
 function parentPath(p) {
   const trimmed = p.replace(/[\\/]+$/, '');
   const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
@@ -294,9 +283,6 @@ function buildTile(preset, i) {
       img.className = 'icon';
       img.alt = '';
       if (source.type === 'steam') {
-        // Capa oficial da loja Steam via CDN publico -- so precisa do appid,
-        // que ja vem embutido no target (steam://rungameid/{appid}), sem
-        // depender de pasta de instalacao local nem chave de API.
         img.src = `https://cdn.cloudflare.steamstatic.com/steam/apps/${source.target}/header.jpg`;
         img.onerror = onFail;
       } else if (source.type === 'exe') {
@@ -307,9 +293,6 @@ function buildTile(preset, i) {
         try {
           url = new URL(source.target);
         } catch {
-          // onFail so pode rodar depois que a atribuicao "const img = makeIcon(...)"
-          // do chamador terminar -- callbacks tipo "() => img.remove()" ainda
-          // nao tem "img" inicializado se chamados sincrono daqui dentro (TDZ).
           setTimeout(onFail, 0);
           return img;
         }
@@ -322,14 +305,6 @@ function buildTile(preset, i) {
       return img;
     };
 
-    // Ultimo recurso antes do monograma: busca por nome na Steam Store (sem
-    // chave) e cacheia local -- cobre jogo instalado por outro launcher (ex:
-    // Epic) que tambem existe na Steam, ou exe sem icone embutido no binario.
-    // Exclusivo de verdade (nunca esteve na Steam) ainda cai no monograma.
-    // SO pra jogo: nunca dispara pra passo tipo "url" (site) nem pra preset
-    // sem nenhum passo de "abrir" (ex: botao so de tecla/som) -- senao
-    // busca "GitHub" ou "Tela Cheia (F11)" na loja Steam e arrisca pegar um
-    // icone de jogo qualquer sem relacao nenhuma com o preset.
     const showOnlineFallback = () => {
       const primaryTarget = (preset.steps || [])[0]?.target || '';
       const img = document.createElement('img');
@@ -355,19 +330,12 @@ function buildTile(preset, i) {
     } else if (iconSources.length === 1) {
       const source = iconSources[0];
       if (source.type === 'url') {
-        // Site: favicon falhou -> monograma direto, sem busca de jogo.
         const img = makeIcon(source, () => {
           iconWrap.textContent = monogram;
           iconWrap.classList.add('fallback');
         });
         iconWrap.appendChild(img);
       } else {
-        // "let" (nao "const") de proposito: o callback de erro roda async
-        // (evento de rede), bem depois dessa atribuicao terminar -- por isso
-        // "img" ja esta setado quando o onerror dispara e da pra remover o
-        // <img> quebrado antes de tentar o fallback online. Sem isso os dois
-        // ficavam lado a lado no wrapper (flex), embolando o icone quebrado
-        // com o que carregou certo em vez de substituir.
         let img;
         img = makeIcon(source, () => {
           img.remove();
@@ -435,10 +403,6 @@ function paginate(tiles) {
     grid.appendChild(page);
   }
 
-  // Fontes web (Chakra Petch/JetBrains Mono) carregam depois do primeiro
-  // paint -- o reflow que isso causa as vezes faz o scroll-snap "corrigir"
-  // sozinho pra um scrollLeft fora de 0, deixando a pagina 2 vazar uns
-  // pixels na borda da pagina 1. Trava explicito na pagina 1 apos montar.
   grid.scrollLeft = 0;
 
   if (pageCount > 1) {
@@ -512,10 +476,6 @@ export async function renderGrid() {
   paginate(tiles);
 }
 
-// Le a resposta como NDJSON (uma linha por step, mais uma linha final
-// "done") em vez de esperar o JSON completo -- em preset com varios steps
-// mostra o progresso passo a passo em vez de deixar o usuario sem feedback
-// nenhum ate o ultimo step terminar.
 async function runPreset(id, btn) {
   if (btn.classList.contains('loading')) return;
   btn.classList.add('firing', 'loading');
@@ -543,9 +503,6 @@ async function runPreset(id, btn) {
         if (msg.type === 'done') {
           finalResults = msg.results;
         } else if (msg.type === 'step' && msg.total > 1) {
-          // Preset de 1 step so (o caso mais comum, ex: abrir 1 programa)
-          // fica igual a antes -- so mostra progresso quando ha o que
-          // progredir de verdade.
           showToast(`Passo ${msg.index + 1}/${msg.total}: ${msg.ok ? 'OK' : 'FALHOU'} — ${msg.step}`, msg.ok);
         }
       }

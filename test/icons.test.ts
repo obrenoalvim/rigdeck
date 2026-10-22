@@ -4,10 +4,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { extractIcon } from '../src/lib/icons.js';
 
-// Sem mock de child_process (mesmo padrao de executor.test.ts: roda o script
-// real). Caminho garantidamente inexistente faz get-icon.ps1 sair com exit 1
-// de forma deterministica (Test-Path falha antes de qualquer tentativa real
-// de extrair icone), sem depender de nenhum .exe existir na maquina de teste.
 const MISSING_EXE = path.join(os.tmpdir(), 'rigdeck-nao-existe-de-verdade.exe');
 
 test('extractIcon resolve null quando o arquivo nao existe, sem lancar', async () => {

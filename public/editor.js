@@ -21,9 +21,6 @@ const itemTriggerProcessInput = document.getElementById('item-trigger-process');
 const itemTriggerPicker = itemTriggerProcessInput.closest('.trigger-picker');
 const itemTriggerSuggestions = document.getElementById('item-trigger-suggestions');
 const itemTriggerChips = document.getElementById('item-trigger-chips');
-// Varios gatilhos por pasta (ex: jogo + launcher companion) -- cada item
-// {processName, label, target}. target fica null pra entrada manual
-// (usuario avancado que digitou o processo direto sem selecionar da lista).
 let triggerChips = [];
 
 function refresh() {
@@ -36,10 +33,6 @@ export function renderProgramsList() {
   state.programsByProcessName = {};
   for (const p of state.programs) {
     state.programsByTarget[p.target] = p;
-    // Reindexado por processName (nao so por target) pra reconhecer, ao
-    // reabrir uma pasta pra editar, qual jogo/programa corresponde ao
-    // "processo" ja salvo -- sem isso a pre-visualizacao (icone + nome)
-    // some depois de salvar e reabrir o formulario.
     if (p.processName && !state.programsByProcessName[p.processName.toLowerCase()]) {
       state.programsByProcessName[p.processName.toLowerCase()] = p;
     }
@@ -65,10 +58,6 @@ export function renderObsScenesList() {
   }
 }
 
-// Pastas e seus itens ficam juntos, com indentação por nível -- lista
-// crua em ordem de array (o formato antigo) intercalava pasta com
-// filhos de outras pastas, exigindo ler "(em: X)" pra entender onde
-// cada coisa estava.
 function orderedPresetTree() {
   const rows = [];
   const addChildren = (parentId, depth) => {
@@ -83,9 +72,6 @@ function orderedPresetTree() {
   return rows;
 }
 
-// Com busca ativa, ignora hierarquia/collapse -- lista achatada (depth 0
-// sempre) so com o que bate o nome, senao um preset dentro de uma pasta
-// recolhida nunca apareceria no resultado da busca.
 function searchPresetTree(query) {
   const q = query.toLowerCase();
   return state.presets.filter((p) => p.name.toLowerCase().includes(q)).map((preset) => ({ preset, depth: 0 }));
@@ -164,8 +150,6 @@ export function renderPresetList() {
     delBtn.setAttribute('aria-label', 'Apagar');
     delBtn.textContent = '×';
     delBtn.onclick = async () => {
-      // Apaga na hora (sem confirm() bloqueante -- ruim em PWA mobile) e
-      // oferece desfazer por alguns segundos em vez de perguntar antes.
       const children = state.presets.filter((p) => p.parentId === preset.id);
       const snapshot = { ...preset };
       const childIds = children.map((c) => c.id);
@@ -192,11 +176,6 @@ export function renderPresetList() {
   wireDragReorder();
 }
 
-// Segurar o "handle" e arrastar reordena dentro do MESMO grupo (mesma
-// pasta-pai) -- solta em cima de outro item do mesmo grupo e usa o
-// endpoint /move (ja testado) repetidas vezes ate chegar na posicao.
-// So considera alvo com o mesmo parentId -- nao deixa "soltar" dentro
-// de outro grupo por engano.
 const AUTOSCROLL_EDGE = 50;
 const AUTOSCROLL_MAX_SPEED = 14;
 
@@ -257,9 +236,6 @@ function wireDragReorder() {
       const rowPreset = state.presets.find((p) => p.id === row.dataset.id);
       const targetPreset = state.presets.find((p) => p.id === targetEl.dataset.id);
 
-      // Soltar em cima de uma pasta (que nao seja ela mesma nem descendente
-      // dela, senao criaria um ciclo) reparenta pra dentro dela -- diferente
-      // do reorder abaixo, que so troca posicao dentro do MESMO grupo.
       const isCycle = rowPreset.kind === 'folder' && descendantIds(rowPreset.id).has(targetPreset?.id);
       if (targetPreset?.kind === 'folder' && targetPreset.id !== rowPreset.id && !isCycle) {
         if (targetPreset.id !== (rowPreset.parentId || null)) {
@@ -284,9 +260,6 @@ function wireDragReorder() {
   });
 }
 
-// Pra editar uma pasta, o seletor de "onde guardar" nao pode oferecer ela
-// mesma nem nenhum dos seus descendentes -- senao da pra criar um ciclo
-// (pasta A dentro da pasta B que ta dentro da propria pasta A).
 function descendantIds(id) {
   const ids = new Set();
   const queue = [id];
@@ -321,8 +294,6 @@ function renderParentOptions(excludeId) {
 }
 
 function addTriggerChip(chip) {
-  // Dedupe por processName -- selecionar o mesmo jogo duas vezes nao faz
-  // sentido e so inflaria a lista salva.
   if (triggerChips.some((c) => c.processName.toLowerCase() === chip.processName.toLowerCase())) return;
   triggerChips.push(chip);
   renderTriggerChips();
@@ -379,8 +350,6 @@ function renderTriggerSuggestions() {
     const span = document.createElement('span');
     span.textContent = p.name;
     row.appendChild(span);
-    // mousedown (nao click) dispara antes do blur do input -- senao o blur
-    // esconde a lista de sugestoes primeiro e o clique nunca chega no row.
     row.addEventListener('mousedown', (e) => {
       e.preventDefault();
       addTriggerChip({ processName: p.processName || p.name, label: p.name, target: p.target });
@@ -397,8 +366,6 @@ itemTriggerProcessInput.addEventListener('focus', renderTriggerSuggestions);
 itemTriggerProcessInput.addEventListener('blur', () => {
   itemTriggerSuggestions.hidden = true;
 });
-// Enter sem ter clicado numa sugestao = usuario avancado digitando o nome
-// do processo direto -- adiciona como chip manual (sem icone).
 itemTriggerProcessInput.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
   e.preventDefault();
@@ -666,8 +633,6 @@ document.getElementById('toggle-edit').onclick = () => {
   if (editor.classList.contains('open')) updateClaudeToggleVisibility();
 };
 
-// Chave que so faz sentido pra quem tem o plugin claude-hud escrevendo o
-// snapshot -- some do CONFIG pra quem nao tem, em vez de opcao morta.
 function updateClaudeToggleVisibility() {
   const available = hasClaudeData();
   for (const key of ['claude5h', 'claudeWeek']) {
@@ -748,8 +713,6 @@ function folderName(dir) {
   return parts.length ? parts[parts.length - 1] : dir;
 }
 
-// Cria varios presets de uma vez na pasta aberta no deck (sem passar pelo
-// formulario) -- fluxo "marcou N programas, ja estao no deck".
 export async function createMany(drafts) {
   let ok = 0;
   for (const draft of drafts) {
@@ -787,7 +750,6 @@ export async function addFsFolderFlow() {
 document.getElementById('add-programs').onclick = addProgramsFlow;
 document.getElementById('add-fs-folder').onclick = addFsFolderFlow;
 
-// Abre o painel CONFIG ja com o preset carregado (usado pelo menu de contexto).
 export function openEditorFor(preset) {
   editor.classList.add('open');
   updateClaudeToggleVisibility();

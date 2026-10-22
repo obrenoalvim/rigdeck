@@ -1,10 +1,3 @@
-// Traduz um atalho tipo "ctrl+1" pra sintaxe crua do SendKeys ("^1") --
-// usado pelo soundboard pra acionar um som ja cadastrado no Soundboard
-// nativo do Discord (via keybind configurada nas Configuracoes > Atalhos do
-// proprio Discord) em vez de tocar um arquivo local. Mistura acontece dentro
-// do Discord (audio in-process), sem precisar rotear dispositivo nenhum --
-// bem mais confiavel que forcar troca de dispositivo padrao (testado e
-// descartado: mexe com outros apps de audio rodando junto).
 const MODIFIER_TOKENS: Record<string, string> = { ctrl: '^', control: '^', alt: '%', shift: '+' };
 
 const NAMED_KEYS: Record<string, string> = {

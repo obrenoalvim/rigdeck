@@ -15,8 +15,6 @@ const CLOSE_WINDOW_SCRIPT = path.join(SCRIPTS_DIR, 'close-window.ps1');
 const SEND_KEY_SCRIPT = path.join(SCRIPTS_DIR, 'send-key.ps1');
 const PLAY_SOUND_SCRIPT = path.join(SCRIPTS_DIR, 'play-sound.ps1');
 
-// --app=<url> so existe em navegadores Chromium -- Firefox ja e um atalho
-// separado (nao usa esse modo), entao nem entra na lista.
 const APP_BROWSER_CANDIDATES = [
   'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -35,19 +33,6 @@ function isUrl(target?: string): boolean {
 
 type Handle = { kind: 'hwnd' | 'pid'; value: number };
 
-// Handle (PID de processo OU HWND de janela) da ultima execucao bem-sucedida
-// de cada passo, pra "segurar pra fechar" encerrar exatamente o que ESSE
-// preset abriu -- nao qualquer processo com o mesmo nome (ex: nao fechar
-// outra janela do Chrome que ja tava aberta), nem o navegador inteiro
-// quando o passo e uma URL (ai o alvo e a HWND daquela janela especifica,
-// ja que o processo do navegador e compartilhado entre varias janelas/abas
-// e matar por PID fecharia tudo). So em memoria -- perde no restart do
-// servidor, ai cai pro kill por nome (ou fica sem para URLs).
-//
-// Chave e preset.id + target (nao o indice do passo!) -- se fosse por indice,
-// editar o preset (reordenar/remover passo) depois de rodar e antes de matar
-// faria o kill usar o handle de outro passo. Como o Windows reusa PID de
-// processo encerrado, isso podia matar algo sem nenhuma relacao com o preset.
 const lastHandles = new Map<string, Handle>();
 
 export function pidKeyFor(presetId: string, step: PresetStep): string {
@@ -143,10 +128,6 @@ export function sendKey(key?: string, processName?: string): Promise<StepResult>
   return runPs(args, 20000, `send-key.ps1 (key "${key}")`);
 }
 
-// Nao espera o som acabar de tocar (PlaySync bloqueia pela duracao inteira
-// do arquivo) -- so confirma que o processo subiu, senao um efeito sonoro
-// de 5s deixaria o botao "carregando" travado por 5s pra um preset que so
-// deveria ser instantaneo.
 export function playSound(filePath: string): Promise<StepResult> {
   return new Promise((resolve) => {
     const child = execFile(
@@ -161,10 +142,6 @@ export function playSound(filePath: string): Promise<StepResult> {
   });
 }
 
-// OBS_ACTIONS -- lista fechada de acoes comuns em vez de expor requestType
-// cru do obs-websocket direto no editor (mais amigavel, e cobre o que
-// STREAMDECK GAPS.md apontou como mais pedido: trocar cena, mutar mic,
-// gravar/streamar).
 async function runObsAction(step: PresetStep): Promise<StepResult> {
   try {
     switch (step.action) {
@@ -211,19 +188,12 @@ function killProcess(processName: string): Promise<StepResult> {
 
 function killByPid(pid: number): Promise<StepResult> {
   return new Promise((resolve) => {
-    // /T mata a arvore de processos filhos tambem -- pega o caso de
-    // bootstrapper/launcher que repassa pro processo real do jogo.
     execFile('taskkill', ['/F', '/PID', String(pid), '/T'], (err, _stdout, stderr) => {
       resolve(err ? { ok: false, error: (stderr || err.message).trim() } : { ok: true, note: 'encerrado pelo PID exato' });
     });
   });
 }
 
-// Kill de um arquivo aberto via navegacao de pasta do disco (kind=fs-folder) --
-// esses nao sao presets com passos rastreados, so um caminho solto. So da pra
-// adivinhar o processo se o alvo for um .exe (mesma regra do processNameFor);
-// arquivo aberto por associacao de app (.txt, .pdf...) nao tem como saber
-// qual processo o Windows escolheu pra abrir.
 export function killByPath(targetPath: string): Promise<StepResult> {
   if (!/\.exe$/i.test(targetPath)) {
     return Promise.resolve({ ok: false, error: 'sem processo conhecido pra encerrar' });
@@ -247,7 +217,6 @@ export async function killPreset(preset: Preset): Promise<StepResult[]> {
         results.push({ step: step.target, ...result });
         continue;
       }
-      // Handle nao existe mais (janela/processo ja tinha fechado) -- cai pro nome.
     }
     const processName = processNameFor(step);
     if (!processName) {
@@ -260,9 +229,6 @@ export async function killPreset(preset: Preset): Promise<StepResult[]> {
   return results;
 }
 
-// onStep(entry, index, total) e opcional -- chamado logo apos CADA step
-// terminar, pra quem quiser dar feedback progressivo (ex: streaming HTTP)
-// em vez de esperar o preset inteiro rodar pra saber que o passo 1 ja falhou.
 export async function runPreset(
   preset: Preset,
   monitors: Monitor[],

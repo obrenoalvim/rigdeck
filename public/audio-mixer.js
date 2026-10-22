@@ -8,15 +8,8 @@ const soundsEl = document.getElementById('audio-sounds');
 
 let pollTimer = null;
 let meterSource = null;
-// Enquanto o usuario arrasta QUALQUER slider, o poll de estado pula o
-// re-render inteiro -- senao o valor otimista na tela e sobrescrito pelo
-// estado antigo que ainda esta a caminho do servidor (a chamada de verdade
-// so dispara debounced). Os VU meters (SSE) continuam atualizando normal,
-// nao dependem desse poll.
 let dragging = false;
 const debounceTimers = new Map();
-// pid (ou 'master'/'mic') -> elemento .audio-meter-fill, refeito a cada
-// render() pra apontar pros nos de DOM atuais.
 const meterEls = new Map();
 
 function debounce(key, fn, delay = 120) {
@@ -24,8 +17,6 @@ function debounce(key, fn, delay = 120) {
   debounceTimers.set(key, setTimeout(fn, delay));
 }
 
-// aria-label acompanha o estado (Mutar/Desmutar X) -- mesmo padrao ja usado
-// no botao de pin do editor (`Fixar`/`Desafixar` conforme o estado atual).
 function wireMuteBtn(btn, initialMuted, onToggle, label) {
   const apply = (muted) => {
     btn.classList.toggle('muted', muted);
@@ -52,9 +43,6 @@ function fallbackIcon(icon = '🔊') {
   return span;
 }
 
-// Canal vertical (fader que sobe/desce, tipo mesa de som de verdade) usado
-// pra master, mic e cada app -- os 3 sao estruturalmente identicos, so muda
-// de onde vem o volume/mute e pra onde manda a mudanca.
 function buildChannelStrip({ key, label, icon, iconPath, volume, muted, onVolume, onMute }) {
   const strip = document.createElement('div');
   strip.className = 'channel-strip';
@@ -181,7 +169,6 @@ async function refreshAudioState() {
   }
 }
 
-// --- Graves / Agudos (Equalizer APO) ---------------------------------------
 
 function buildEqRow(label, value, onChange, min = -12, max = 12) {
   const row = document.createElement('div');
@@ -263,10 +250,6 @@ async function refreshEq() {
   );
 }
 
-// --- Voz (Clownfish Voice Changer) ------------------------------------------
-// Protocolo e so de ida -- Clownfish nao devolve estado nenhum (limitacao
-// documentada da API deles), entao nao da pra saber qual efeito ta ativo
-// agora nem ler o pitch atual. O slider sempre abre em 0, sem tentar sincronizar.
 
 const voiceEl = document.getElementById('audio-voice');
 
@@ -345,7 +328,6 @@ async function refreshVoice() {
   voiceEl.appendChild(buildEqRow('PITCH', 0, (pitch) => setVoice({ voice: 'customPitch', pitch }), -15, 15));
 }
 
-// --- Efeitos sonoros (soundboard) ------------------------------------------
 
 function buildSoundChip(sound) {
   const chip = document.createElement('button');
@@ -356,10 +338,6 @@ function buildSoundChip(sound) {
   label.textContent = `${sound.keybind ? '⌨️' : '🔊'} ${sound.name}`;
   if (sound.keybind) label.title = `Aciona o Soundboard do Discord (atalho: ${sound.keybind})`;
 
-  // span, nao button -- o chip inteiro ja e um <button> (toca o som), e
-  // <button> dentro de <button> e HTML invalido (o navegador quebra a
-  // estrutura, fecha o de fora antes da hora). role+tabindex+keydown cobre
-  // teclado/leitor de tela sem precisar de elemento aninhado.
   const del = document.createElement('span');
   del.className = 'sound-chip-del';
   del.textContent = '×';
@@ -431,14 +409,10 @@ document.getElementById('audio-sound-add').onclick = async () => {
   }
 };
 
-// --- VU meter ao vivo (SSE) -------------------------------------------------
 
 function updateMeter(key, peak) {
   const el = meterEls.get(key);
   if (!el) return;
-  // Meter vertical enche de baixo pra cima -- altura, nao largura. Peak
-  // raramente chega perto de 1.0 em uso normal, escala um pouco pra o meter
-  // nao ficar sempre baixinho na tela.
   el.style.height = `${Math.min(100, Math.round(peak * 140))}%`;
 }
 
@@ -453,9 +427,6 @@ function startMeterStream() {
       return;
     }
     if (data.error) return;
-    // Outro dispositivo com o mixer aberto mudou volume/mute -- busca o
-    // estado novo na hora em vez de esperar o poll de 2s (sincroniza entre
-    // celular/PC/etc que estiverem com o mixer aberto ao mesmo tempo).
     if (data.type === 'state-changed') {
       refreshAudioState();
       return;
@@ -472,7 +443,6 @@ function stopMeterStream() {
   meterSource = null;
 }
 
-// --- Abrir/fechar -----------------------------------------------------------
 
 export function openAudioMixer() {
   modal.classList.add('open');
@@ -500,8 +470,6 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && modal.classList.contains('open')) closeAudioMixer();
 });
 
-// Mixer aberto com a pagina escondida segura o PowerShell do VU meter e o
-// poll de 2s -- solta ao esconder, retoma ao voltar se ainda estiver aberto.
 document.addEventListener('visibilitychange', () => {
   if (!modal.classList.contains('open')) return;
   clearInterval(pollTimer);

@@ -61,10 +61,6 @@ function httpsGetJson(url: string, redirectsLeft = 5): Promise<{ items?: Array<{
   });
 }
 
-// Node's https.get NAO segue redirect sozinho (diferente de <img src> no
-// navegador, que segue automatico -- por isso os icones Steam do grid ja
-// funcionavam client-side mesmo com o CDN redirecionando). Confirmado ao
-// vivo: cdn.cloudflare.steamstatic.com devolve 301 pro header.jpg agora.
 function httpsDownload(url: string, destPath: string, redirectsLeft = 5): Promise<void> {
   return new Promise((resolve, reject) => {
     https
@@ -88,17 +84,6 @@ function httpsDownload(url: string, destPath: string, redirectsLeft = 5): Promis
   });
 }
 
-// Busca por nome na Steam Store search API (publica, sem chave) e baixa a
-// capa oficial pro cache local -- cobre jogos instalados por outro launcher
-// (Epic, GOG, atalho solto) que tambem existem na loja Steam (ex: jogo que
-// migrou de Steam pra Epic mantem a pagina antiga). Exclusivos de verdade
-// (ex: Fortnite, nunca esteve na Steam) nao acham nada -- cai no
-// negative-cache (null) pra nao rebuscar na rede toda vez que o grid carrega.
-//
-// ponytail: so cobre a Steam Store (unica API keyless conhecida com cobertura
-// ampla de jogos). Programa nao-jogo sem presenca na Steam (a maioria dos
-// apps de produtividade) continua caindo no monograma -- upgrade seria
-// integrar outra fonte (ex: SteamGridDB) se algum dia isso exigir chave de API.
 export async function lookupIcon(name: string, target?: string | null): Promise<string | null> {
   if (!name) return null;
   ensureCacheDir();
@@ -113,9 +98,6 @@ export async function lookupIcon(name: string, target?: string | null): Promise<
       `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(name)}&cc=us&l=en`
     );
     // A API devolve type:"app" pra jogo de verdade (nao "game" como seria de
-    // se esperar) -- confirmado testando ao vivo contra a API real. Pega o
-    // primeiro resultado: a busca da Steam ja ordena por relevancia, e o
-    // termo de busca e o nome exato do programa/jogo na maioria dos casos.
     const match = (search.items ?? []).find((it) => it.type === 'app');
     if (!match) {
       index[key] = null;
@@ -129,8 +111,6 @@ export async function lookupIcon(name: string, target?: string | null): Promise<
     saveIndex(index);
     return destPath;
   } catch {
-    // Falha de rede/parse -- NAO cacheia negativo (pode ser passageiro,
-    // ex: sem internet no momento), tenta de novo na proxima chamada.
     return null;
   }
 }

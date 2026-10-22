@@ -72,11 +72,6 @@ function getPrograms(): Promise<Program[]> {
 
 const app = Fastify({ logger: false });
 
-// Fastify's default JSON parser 400s on an empty body declared as
-// application/json (FST_ERR_CTP_EMPTY_JSON_BODY) -- but the frontend always
-// sends that content-type even for bodyless calls (DELETE, /run, /kill), so
-// the stock behavior would break every one of those in real use. Treat an
-// empty body as {} instead, same as Express's json() middleware does.
 app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
   const text = body as string;
   if (!text) return done(null, {});
@@ -92,8 +87,6 @@ app.addHook('onRequest', (request, _reply, done) => {
   done();
 });
 
-// preHandler (not onRequest) -- body parsing happens between onRequest and
-// preHandler, so this is the first point request.body is actually populated.
 app.addHook('preHandler', (request, _reply, done) => {
   if (['POST', 'PUT', 'DELETE'].includes(request.method)) {
     log(`${request.method} ${request.url} body:`, JSON.stringify(request.body ?? {}));
@@ -208,8 +201,6 @@ function runPowershellArgs<T>(args: string[], timeoutMs: number): Promise<T> {
   });
 }
 
-// Processo em foreground -- usado pelo frontend pra trocar de pasta sozinho
-// quando o jogo/app associado a ela ganha foco (troca de perfil contextual).
 app.get('/api/active-window', async (_request, reply) => {
   try {
     return await runPowershellArgs(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', GET_FOREGROUND_SCRIPT], 5000);
@@ -263,9 +254,6 @@ app.get<{ Querystring: { path?: string } }>('/api/icon', async (request, reply) 
   return reply.send(buf);
 });
 
-// Fallback quando nao ha icone local (Epic games, exe sem icone embutido):
-// busca por nome na Steam Store (sem chave) e cacheia a capa em disco --
-// so bate na rede na primeira vez, depois serve do cache local direto.
 app.get<{ Querystring: { name?: string; target?: string } }>('/api/icon/lookup', async (request, reply) => {
   const { name, target } = request.query;
   if (!name) return reply.code(400).send({ error: 'name obrigatorio' });
@@ -328,12 +316,6 @@ app.post<{ Params: { pid: string }; Body: { volume?: number; muted?: boolean } }
   }
 );
 
-// VU meter ao vivo -- SSE em vez de poll: fica aberto so enquanto o mixer
-// tiver na tela (frontend fecha o EventSource ao fechar o modal), o unsubscribe
-// (via close da conexao) derruba o processo PowerShell residente quando
-// ninguem mais ouve. reply.hijack() tira o Fastify do caminho da resposta --
-// sem isso ele tenta finalizar a reply sozinho assim que o handler retorna,
-// o que fecharia o stream SSE na hora.
 app.get('/api/audio/meters', async (request, reply) => {
   reply.hijack();
   reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
@@ -376,9 +358,6 @@ app.post<{ Body: { voice?: string; pitch?: number; enabled?: boolean } }>('/api/
   }
 });
 
-// Le a lista de cenas direto do OBS (via websocket) pra popular o dropdown
-// do editor -- se o OBS nao estiver aberto/websocket desligado, devolve
-// lista vazia (editor cai pro campo de texto livre) em vez de quebrar a tela.
 app.get('/api/obs/scenes', async () => {
   try {
     const { scenes } = (await sendObsRequest('GetSceneList')) as { scenes: Array<{ sceneName: string }> };
@@ -390,12 +369,6 @@ app.get('/api/obs/scenes', async () => {
 
 app.get('/api/sounds', async () => soundsStore.list());
 
-// Som local (toca no PC, so quem estiver no PC ouve) OU keybind do Discord
-// (aciona um som ja cadastrado no Soundboard nativo do Discord -- a mistura
-// com a voz acontece dentro do proprio Discord, sem precisar rotear
-// dispositivo de audio nenhum. Trocar o dispositivo padrao do sistema pra
-// isso foi tentado e descartado: bagunca outros apps de audio rodando
-// junto, como o proprio gravador/call que a feature deveria ajudar).
 app.post<{ Body: { name?: string; path?: string; keybind?: string } }>('/api/sounds', async (request, reply) => {
   const { name, path: soundPath, keybind } = request.body;
   if (!name || (!soundPath && !keybind)) {
@@ -431,12 +404,6 @@ app.post<{ Params: { id: string } }>('/api/sounds/:id/play', async (request, rep
   }
 });
 
-// Navegacao de pasta do disco: raiz cadastrada num preset kind=fs-folder,
-// ai o front dispara /fs/list a cada nivel (sempre le o disco na hora, nunca
-// vira preset salvo) e /fs/open pra rodar o arquivo clicado.
-// ponytail: sem confinamento de path a raiz cadastrada -- app ja nao tem
-// autenticacao e ja permite passo cmd com comando arbitrario, entao restringir
-// so essas duas rotas nao mudaria o modelo de confianca (rede local).
 app.get('/api/fs/roots', async () => ({ entries: listRoots() }));
 
 app.get<{ Querystring: { path?: string } }>('/api/fs/list', async (request, reply) => {
@@ -465,10 +432,6 @@ app.post<{ Body: { path?: string } }>('/api/fs/kill', async (request, reply) => 
   return killByPath(target);
 });
 
-// Streama um resultado por linha (NDJSON) a medida que cada step termina,
-// em vez de so responder no final -- preset com varios steps (ex: abrir
-// Spotify + Brave + VSCode) deixava o usuario sem feedback nenhum ate tudo
-// rodar. Compatibilidade: preset de 1 step so continua parecendo instantaneo.
 app.post<{ Params: { id: string } }>('/api/presets/:id/run', async (request, reply) => {
   const preset = store.get(request.params.id);
   if (!preset) return reply.code(404).send({ error: 'not found' });
@@ -509,10 +472,6 @@ app.post<{ Params: { id: string } }>('/api/presets/:id/kill', async (request, re
   }
 });
 
-// Barra de midia fixa no rodape -- nao e um preset (nao aparece na lista do
-// editor, nao precisa de pasta), e um controle fixo sempre visivel. Reusa
-// runPreset com um preset descartavel montado na hora, ja que a logica de
-// passo "key" nao depende de estar salvo em lugar nenhum.
 const MEDIA_ACTIONS = ['PLAY_PAUSE', 'NEXT', 'PREV', 'VOLUME_UP', 'VOLUME_DOWN', 'MUTE'];
 app.post<{ Params: { action: string } }>('/api/media/:action', async (request, reply) => {
   const action = request.params.action.toUpperCase();

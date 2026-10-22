@@ -1,9 +1,6 @@
 import { api } from './api.js';
 import { state } from './state.js';
 
-// Mesma logica de icone real do grid (grid.js buildTile) reduzida pra um
-// unico target -- so cobre Steam (CDN publico) e .exe local (extrai do
-// binario). Resto cai no fallback (monograma).
 export function iconSrcFor(target) {
   if (!target) return null;
   const steamId = target.match(/^steam:\/\/rungameid\/(\d+)/i);
@@ -12,8 +9,6 @@ export function iconSrcFor(target) {
   return null;
 }
 
-// Sigla a partir do nome ("Counter-Strike 2" -> "CS2") -- quem usa digita a
-// sigla que ja conhece, e substring pura no nome nao acha.
 export function acronymOf(name) {
   return name
     .split(/[\s\-:]+/)
@@ -35,9 +30,6 @@ function el(tag, className, text) {
   return node;
 }
 
-// Cria o modal, devolve {body, footer, close}. Resolve a promise do chamador
-// com `finish(valor)`; Esc / clique fora / CANCELAR resolvem com null.
-// Esc em fase de captura pra nao fechar o editor que esta por baixo.
 function openModal(title, subtitle) {
   const overlay = el('div', 'picker-overlay');
   const box = el('div', 'picker-box');
@@ -62,7 +54,6 @@ function openModal(title, subtitle) {
     done(value);
   };
   const onKey = (e) => {
-    // com 2 modais empilhados (catalogo -> disco) so o de cima reage
     if (e.key !== 'Escape' || overlay !== [...document.querySelectorAll('.picker-overlay')].pop()) return;
     e.stopPropagation();
     finish(null);
@@ -71,7 +62,6 @@ function openModal(title, subtitle) {
   overlay.addEventListener('mousedown', (e) => {
     if (e.target === overlay) finish(null);
   });
-  // Setas navegam entre as linhas (busca <-> lista), sem precisar de mouse.
   box.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     const rows = [...box.querySelectorAll('.picker-row')];
@@ -89,8 +79,6 @@ function makeIcon(name, target) {
   const wrap = el('div', 'picker-icon fallback', (acronymOf(name)[0] || name[0] || '?').toUpperCase());
   const src = iconSrcFor(target);
   if (!src) return wrap;
-  // monograma ate o icone real chegar (extracao do .exe pode demorar);
-  // se falhar, o monograma fica.
   const img = new Image();
   img.alt = '';
   img.loading = 'lazy';
@@ -109,10 +97,6 @@ const TABS = [
   ['Epic', 'EPIC', (p) => p.source === 'Epic'],
 ];
 
-// Escolhe programas do catalogo (Menu Iniciar, Steam, Epic) com busca, abas
-// e icones. multi=true marca varios e devolve uma lista; multi=false devolve
-// 1 ao clicar. "PROCURAR NO DISCO" abre o navegador de arquivos pra .exe/.lnk
-// que nao estao no catalogo. Devolve [] / null se cancelado.
 export async function pickPrograms({ multi }) {
   const modal = openModal(
     multi ? 'Adicionar programas' : 'Escolher programa',
@@ -188,7 +172,6 @@ export async function pickPrograms({ multi }) {
   }
 
   search.oninput = render;
-  // Enter na busca com um unico resultado = escolhe/marca ele (fluxo so-teclado).
   search.onkeydown = (e) => {
     if (e.key !== 'Enter') return;
     const rows = list.querySelectorAll('.picker-row');
@@ -217,12 +200,9 @@ export function parentOf(p) {
   const trimmed = p.replace(/[\\/]+$/, '');
   const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
   if (idx < 0) return null;
-  // "C:" -> volta pra raiz "C:\"; acima do drive = lista de locais.
   return idx <= 2 && /^[A-Za-z]:$/.test(trimmed.slice(0, idx)) ? trimmed.slice(0, idx) + '\\' : trimmed.slice(0, idx) || null;
 }
 
-// Navegador de disco (roda no servidor, entao funciona do celular tambem).
-// mode 'folder' -> devolve o caminho da pasta; 'file' -> caminho do arquivo.
 export async function browseDisk({ mode, start }) {
   const isFolder = mode === 'folder';
   const modal = openModal(
@@ -265,7 +245,6 @@ export async function browseDisk({ mode, start }) {
       try {
         localStorage.setItem(LAST_DIR_KEY, dir);
       } catch {
-        // storage bloqueado: so nao lembra a ultima pasta
       }
     }
     list.innerHTML = '';
@@ -300,7 +279,6 @@ export async function browseDisk({ mode, start }) {
     }
   }
   go(first).then(() => {
-    // pasta lembrada sumiu -> cai na lista de locais em vez de tela vazia
     if (first && current === null && !list.querySelector('.picker-row')) go(null);
   });
   return modal.result;

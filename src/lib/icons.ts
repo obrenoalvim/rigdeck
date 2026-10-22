@@ -6,9 +6,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'get-icon.ps1');
 const cache = new Map<string, Promise<Buffer | null>>();
 
-// Cada extracao e um powershell.exe novo (~200ms+). O seletor de programas
-// pode pedir dezenas de icones de uma vez ao rolar a lista -- sem limite,
-// isso vira dezenas de processos simultaneos e trava a maquina.
 const MAX_PARALLEL = 4;
 let running = 0;
 const waiting: Array<() => void> = [];
@@ -33,8 +30,6 @@ export function extractIcon(exePath: string): Promise<Buffer | null> {
       { maxBuffer: 1024 * 1024 * 10 },
       (err, stdout) => {
         if (err || !stdout.trim()) {
-          // nao guarda falha em cache -- pode ser passageiro (ex: exe ainda
-          // nao existia, PowerShell ocupado). Tenta de novo na proxima chamada.
           cache.delete(exePath);
           return resolve(null);
         }

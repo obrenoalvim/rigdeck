@@ -7,13 +7,6 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPTS_DIR = path.join(__dirname, '..', '..', 'scripts');
 
-// Equalizer APO -- driver de audio free que usa o Audio Processing Object
-// framework nativo do Windows pra EQ system-wide (Windows nao tem API propria
-// pra isso). O rigdeck NUNCA instala sozinho: o usuario baixa/instala manual
-// (precisa de UAC + escolher o dispositivo de playback no wizard deles, nao
-// da pra automatizar com seguranca), a partir dai o rigdeck so detecta a
-// presenca do config.txt e escreve nele -- hot-reload automatico, sem precisar
-// reiniciar nada.
 const EQ_CONFIG_PATH = 'C:\\Program Files\\EqualizerAPO\\config\\config.txt';
 const EQ_BASS_FC = 150;
 const EQ_TREBLE_FC = 8000;
@@ -23,12 +16,6 @@ const SET_AUDIO_VOLUME_SCRIPT = path.join(SCRIPTS_DIR, 'set-audio-volume.ps1');
 const METERS_STREAM_SCRIPT = path.join(SCRIPTS_DIR, 'audio-meters-stream.ps1');
 const VOICE_EFFECT_SCRIPT = path.join(SCRIPTS_DIR, 'send-voice-effect.ps1');
 
-// Clownfish Voice Changer -- freeware system-wide mais usado pra mudar voz
-// em tempo real no Windows (achado via pesquisa: mais popular que Voicemod
-// por ser 100% gratis e nao pedir cabo de audio virtual). Controlado pela
-// API deles (WM_COPYDATA numa janela oculta), documentada e ja usada por
-// outras integracoes (plugin de Touch Portal). Mesma regra do EQ: rigdeck
-// nao instala sozinho, so detecta se ja esta rodando.
 const VOICE_EFFECTS: Record<string, number> = {
   none: 0,
   alien: 1,
@@ -124,13 +111,6 @@ export function setAudioVolume({ target, pid, volume, muted }: SetVolumeParams):
   });
 }
 
-// Stream de VU meter -- processo PowerShell residente (nao 1-por-chamada,
-// custo de spawn inviabiliza leitura a cada 150ms), com ref-count de quem
-// esta ouvindo: sobe no primeiro subscriber, morre quando o ultimo sai.
-// Reusado tambem pra sincronizar volume entre celulares/PCs com o mixer
-// aberto ao mesmo tempo: toda mudanca de volume/mute manda um evento
-// "state-changed" pro mesmo canal SSE, cada cliente reage buscando o
-// estado novo na hora em vez de esperar o poll de 2s.
 type MeterCallback = (data: Record<string, unknown>) => void;
 
 let meterProcess: ChildProcess | null = null;
@@ -156,10 +136,6 @@ function startMeterStream(): void {
   });
   meterProcess.on('exit', () => {
     meterProcess = null;
-    // Se ainda tem gente ouvindo, o processo morreu sozinho (nao foi
-    // stopMeterStream chamando .kill()) -- sem isso o VU meter congelava
-    // pra sempre pra quem ja tava com o mixer aberto, sem nenhum sinal de
-    // erro (SSE continua "aberto", so para de mandar dado).
     if (meterSubscribers.size > 0) startMeterStream();
   });
 }
@@ -185,12 +161,6 @@ export function clampDb(v: unknown, fallback: number, min = -12, max = 12): numb
   return Math.max(min, Math.min(max, n));
 }
 
-// Bloco marcado, nunca sobrescreve o arquivo inteiro -- config.txt pode ja
-// ter conteudo de verdade do usuario (ex: "Include: peace.txt" apontando pra
-// uma curva de EQ configurada por fora, caso real encontrado num teste: sobrescrever
-// tudo teria apagado a curva existente). So mexe no que esta entre os marcadores;
-// o resto do arquivo (Include, filtros de outra ferramenta, etc) fica intacto,
-// e os filtros do rigdeck somam em cima do que ja existe, nao substituem.
 const EQ_BLOCK_START = '# rigdeck-eq (gerenciado pelo rigdeck, nao edite a mao)';
 const EQ_BLOCK_END = '# /rigdeck-eq';
 const EQ_BLOCK_RE = /# rigdeck-eq \(gerenciado pelo rigdeck, nao edite a mao\)[\s\S]*?# \/rigdeck-eq\n?/;
@@ -199,11 +169,6 @@ export function eqBlock(bass: number, treble: number): string {
   return `${EQ_BLOCK_START}\nFilter: ON LSC Fc ${EQ_BASS_FC} Hz Gain ${bass} dB\nFilter: ON HSC Fc ${EQ_TREBLE_FC} Hz Gain ${treble} dB\n${EQ_BLOCK_END}\n`;
 }
 
-// So le de dentro do NOSSO bloco marcado -- nao do arquivo inteiro, pra nao
-// confundir com um filtro LSC/HSC que outra ferramenta (ex: Peace) tenha
-// configurado por conta propria em outro lugar do arquivo. Funcao pura
-// (recebe o conteudo do arquivo, nao o le sozinha) pra dar pra testar sem
-// tocar em disco.
 export function parseEqBlock(content: string): { bass: number; treble: number } {
   const block = content.match(EQ_BLOCK_RE);
   const scope = block ? block[0] : '';
@@ -265,8 +230,6 @@ export interface VoiceEffectParams {
   enabled?: boolean | null;
 }
 
-// Pura (so monta os args, nao chama o script) pra dar pra testar as 3
-// ramificacoes sem precisar do Clownfish rodando de verdade.
 export function buildVoiceArgs({ voice, pitch, enabled }: VoiceEffectParams): string[] {
   if (enabled != null) {
     return ['-Command', '2', '-Arg1', enabled ? '0' : '1']; // 0=liga, 1=desliga no protocolo do Clownfish

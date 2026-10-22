@@ -15,9 +15,6 @@ function writeConfig(overrides: Record<string, unknown>) {
   fs.writeFileSync(configPath, JSON.stringify({ server_enabled: true, server_port: 0, server_password: 'senha123', ...overrides }));
 }
 
-// Mesma formula do handshake real (protocolo v5), calculada aqui de forma
-// independente pra provar que obs.ts gera a auth response certa, e nao so
-// que "manda alguma string".
 function expectedAuth(password: string, salt: string, challenge: string): string {
   const secretHash = crypto.createHash('sha256').update(password + salt).digest('base64');
   return crypto.createHash('sha256').update(secretHash + challenge).digest('base64');
@@ -99,8 +96,6 @@ test('sendObsRequest rejeita rapido com mensagem clara quando OBS fecha o socket
 
   wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ op: 0, d: { rpcVersion: 1, authentication: { salt: 's', challenge: 'c' } } }));
-    // OBS real fecha a conexao com 4009 assim que o Identify (op 1) chega com
-    // auth invalida -- nao manda op:2 nem op:7, so fecha o socket.
     ws.on('message', () => ws.close(4009, 'Authentication failed.'));
   });
 

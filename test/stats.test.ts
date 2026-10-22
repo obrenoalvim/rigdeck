@@ -11,7 +11,6 @@ import {
 test('cpuPercentFromSamples calcula % de uso a partir do delta idle/total', () => {
   const start = { idle: 1000, total: 10000 };
   const end = { idle: 1500, total: 11000 };
-  // idleDelta=500, totalDelta=1000 -> 50% ocupado
   assert.strictEqual(cpuPercentFromSamples(start, end), 50);
 });
 

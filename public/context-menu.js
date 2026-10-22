@@ -3,8 +3,6 @@ import { state } from './state.js';
 import { showToast } from './toast.js';
 import { addProgramsFlow, addFsFolderFlow, openEditorFor, createMany } from './editor.js';
 
-// Botao direito no deck: sobre um tile = acoes do preset; sobre o fundo =
-// adicionar coisas na pasta aberta (mesmos fluxos do painel CONFIG).
 let menuEl = null;
 
 function refresh() {
@@ -56,14 +54,12 @@ async function remove(preset) {
 }
 
 async function duplicate(preset) {
-  // Pasta duplicada vira pasta vazia: copiar a arvore inteira nao e o que se espera de "duplicar".
   const { id: _id, ...copy } = preset;
   await createMany([{ ...copy, name: `${preset.name} (cópia)`, pinned: false }]);
 }
 
 async function newFolder() {
   await createMany([{ name: 'Nova pasta', kind: 'folder', steps: [] }]);
-  // createMany dispara refresh assíncrono; depois abre o editor pra nomear a pasta
   setTimeout(() => {
     const folder = state.presets.find((p) => p.kind === 'folder' && p.name === 'Nova pasta' && (p.parentId || null) === state.currentFolderId);
     if (folder) openEditorFor(folder);
@@ -97,7 +93,6 @@ function show(x, y, items) {
     menuEl.append(btn);
   }
   document.body.append(menuEl);
-  // Mantém dentro da tela
   const { width, height } = menuEl.getBoundingClientRect();
   menuEl.style.left = `${Math.max(4, Math.min(x, innerWidth - width - 4))}px`;
   menuEl.style.top = `${Math.max(4, Math.min(y, innerHeight - height - 4))}px`;
@@ -106,10 +101,8 @@ function show(x, y, items) {
 
 document.addEventListener('contextmenu', (e) => {
   const t = e.target;
-  // Painéis, modais e campos de texto mantêm o menu normal do navegador.
   if (t.closest('#editor, #audio-mixer, .picker-overlay, input, textarea, select, header, footer, #stats')) return;
   const tile = t.closest('.tile');
-  // Tiles sem preset (voltar, navegação do disco) não têm ações próprias.
   if (tile && !tile.dataset.presetId) {
     e.preventDefault();
     return;

@@ -19,8 +19,6 @@ async function loadAll() {
     state.programs = list;
     renderProgramsList();
   }).catch(() => {});
-  // Vazio se o OBS nao estiver aberto/websocket desligado -- editor cai pro
-  // campo de texto livre pro nome da cena nesse caso, sem quebrar a tela.
   api('/obs/scenes').then((scenes) => {
     state.obsScenes = scenes;
     renderObsScenesList();
@@ -34,9 +32,6 @@ document.addEventListener('deck:refresh', () => {
 loadAll().catch((e) => showToast(`Erro carregando: ${e.message}`, false));
 wireMediaBar();
 
-// Polls so rodam com a pagina visivel -- aba escondida, minimizada ou tela
-// apagada nao bate no servidor (cada poll pode subir um PowerShell). Sem
-// ninguem olhando o servidor fica parado; ao voltar, atualiza na hora.
 const polls = [
   [pingStatus, 15000],
   [pollStats, 5000],
@@ -52,10 +47,6 @@ function setPolling(on) {
 setPolling(document.visibilityState === 'visible');
 document.addEventListener('visibilitychange', () => setPolling(document.visibilityState === 'visible'));
 
-// Fullscreen API exige gesto do usuario -- nao da pra entrar sozinho ao
-// carregar a pagina. iOS Safari nao suporta essa API (so "Adicionar a Tela
-// de Inicio" tira a barra do navegador la); onde nao tem suporte o botao
-// fica escondido (hidden no HTML) em vez de quebrado.
 const fullscreenBtn = document.getElementById('toggle-fullscreen');
 if (document.documentElement.requestFullscreen) {
   fullscreenBtn.hidden = false;
@@ -71,17 +62,11 @@ if (document.documentElement.requestFullscreen) {
   });
 }
 
-// Mantem a tela ligada enquanto a aba estiver visivel -- e um painel de
-// parede (celular/tablet/Echo Show), sem isso o SO apaga a tela depois de
-// uns minutos parado mesmo com o app aberto. Solta sozinho quando a aba
-// perde foco/minimiza, entao pede de novo ao voltar. Sem suporte (ex: iOS
-// Safari) so nao faz nada -- nenhum botao, nenhum erro visivel.
 async function requestWakeLock() {
   if (!('wakeLock' in navigator)) return;
   try {
     await navigator.wakeLock.request('screen');
   } catch {
-    // permissao negada, sem energia suficiente, etc -- nada a fazer
   }
 }
 requestWakeLock();
@@ -89,11 +74,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') requestWakeLock();
 });
 
-// Fallback pro Wake Lock API acima -- navegador embarcado tipo o do Echo
-// Show pode reportar suporte e mesmo assim negar em silencio, ou nem ter a
-// API. Video mudo em loop e o truque classico que segura a tela ligada em
-// praticamente qualquer navegador (o SO trata playback ativo como "em uso"
-// e nao apaga a tela) -- nao substitui o Wake Lock, roda junto.
 const nosleepVideo = document.getElementById('nosleep-video');
 function playNosleepVideo() {
   nosleepVideo.play().catch(() => {});

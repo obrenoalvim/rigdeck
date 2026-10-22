@@ -22,9 +22,6 @@ test('usa processName explicito mesmo com target sendo URL', () => {
   assert.strictEqual(processNameFor({ type: 'launch', target: 'http://localhost:8096', processName: 'msedge' }), 'msedge');
 });
 
-// So testa o caminho sem processo conhecido (nao-.exe) -- o caminho .exe
-// chamaria taskkill de verdade, mesmo motivo de killProcess/killByPid nao
-// terem teste direto neste arquivo.
 test('killByPath devolve ok:false pra alvo que nao e .exe (nao da pra adivinhar o processo)', async () => {
   const result = await killByPath('C:\\Users\\alguem\\Documentos\\nota.txt');
   assert.strictEqual(result.ok, false);
@@ -33,10 +30,8 @@ test('killByPath devolve ok:false pra alvo que nao e .exe (nao da pra adivinhar 
 test('pidKeyFor usa o target do passo, nao a posicao -- reordenar passos nao troca a chave', () => {
   const stepA = { type: 'launch' as const, target: 'C:\\Discord.exe' };
   const stepB = { type: 'launch' as const, target: 'C:\\Fortnite.exe' };
-  // preset original: [A, B] -- usuario roda, depois reordena pra [B, A] e edita
   const keyBeforeReorder = pidKeyFor('preset1', stepA);
   const keyAfterReorder = pidKeyFor('preset1', stepA);
   assert.strictEqual(keyBeforeReorder, keyAfterReorder);
-  // a chave de A nunca pode colidir com a de B, senao um kill mataria o processo errado
   assert.notStrictEqual(pidKeyFor('preset1', stepA), pidKeyFor('preset1', stepB));
 });

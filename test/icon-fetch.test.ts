@@ -21,8 +21,6 @@ test('lookupIcon respeita negative-cache sem precisar de rede', async () => {
   const start = Date.now();
   const result = await lookupIcon('Jogo Que Nao Existe De Verdade', null);
   assert.strictEqual(result, null);
-  // Se tivesse ido pra rede, levaria bem mais que isso -- prova indireta de
-  // que o negative-cache evitou a chamada HTTP.
   assert.ok(Date.now() - start < 200, 'nao deveria bater rede com negative-cache preenchido');
 });
 

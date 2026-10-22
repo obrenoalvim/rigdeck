@@ -17,8 +17,6 @@ export function scanDir(dirPath: string): FsEntry[] {
   return entries;
 }
 
-// Pontos de partida do navegador de pastas do editor: atalhos do usuario +
-// drives que existem (A-Z). Dentro do drive o usuario navega via scanDir.
 export function listRoots(): FsEntry[] {
   const home = os.homedir();
   const roots: FsEntry[] = [

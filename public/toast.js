@@ -10,8 +10,6 @@ export function showToast(text, ok = true) {
   hideTimer = setTimeout(() => (toast.style.display = 'none'), 4000);
 }
 
-// Toast com botao de acao (ex: "desfazer apagar") -- fica visivel por
-// `duration` antes de sumir sozinho; clicar na acao chama onAction na hora.
 export function showActionToast(text, actionLabel, onAction, duration = 6000) {
   clearTimeout(hideTimer);
   toast.innerHTML = '';

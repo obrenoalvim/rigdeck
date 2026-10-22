@@ -8,15 +8,11 @@ function loadCollapsedFolders() {
 
 export const STAT_KEYS = ['cpu', 'ram', 'disk', 'claude5h', 'claudeWeek'];
 
-// Guarda os ESCONDIDOS (nao os visiveis). Whitelist de visiveis fazia tile
-// novo (ex: claude5h) sumir pra sempre pra quem ja tinha salvo o array
-// antigo -- nunca reaparecia, mesmo com o dado disponivel de novo.
 function loadVisibleStats() {
   try {
     const hidden = JSON.parse(localStorage.getItem('rigdeck-hidden-stats'));
     if (Array.isArray(hidden)) return new Set(STAT_KEYS.filter((k) => !hidden.includes(k)));
   } catch {
-    // ignora e cai no padrao
   }
   return new Set(STAT_KEYS);
 }
